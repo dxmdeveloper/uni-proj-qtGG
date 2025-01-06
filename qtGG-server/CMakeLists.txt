@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.30)
+project(qtGG_server)
+
+set(CMAKE_CXX_STANDARD 20)
+
+find_package(Crow)
+find_package(OpenSSL)
+find_package(Qt6 COMPONENTS Sql Core REQUIRED)
+
+add_executable(qtGG_server main.cpp
+        config.hpp
+        Auth/Auth.hpp
+        Auth/Auth.cpp
+        Auth/Auth.cpp
+        Auth/Auth.cpp
+        common.hpp
+        Crypt/Crypt.cpp
+        Crypt/Crypt.hpp)
+target_link_libraries(qtGG_server PUBLIC Crow::Crow)
+target_link_libraries(qtGG_server PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(qtGG_server PRIVATE Qt6::Sql Qt6::Core)
