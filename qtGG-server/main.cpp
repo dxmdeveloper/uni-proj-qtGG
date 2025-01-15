@@ -34,24 +34,13 @@ int main(int argc, char *argv[]) {
     CROW_LOG_INFO << "JWT payload read: " << Auth::readJwt(jwt);
 
     CROW_ROUTE(serverApp, "/")([]() {
-        return " HTTP Server is set up!";
+        return "HTTP Server is set up!";
     });
-
-    CROW_ROUTE(serverApp, "/<int>")([](int i) {
-        crow::json::wvalue wvalue;
-        wvalue["int"] = i;
-        return wvalue;
-    });
-
-    CROW_ROUTE(serverApp, "/rand")([] {
-        return std::to_string(getRandInt(0, 66666));
-    });
-
-    // TODO: more errors
 
     // curl -d '{"user":"test3","pass":"aoeuaoeu"}' 127.0.0.1/login
     CROW_ROUTE(serverApp, "/login").methods(crow::HTTPMethod::Post)([&](const crow::request &req, crow::response &res) {
         auto reqBody = crow::json::load(req.body);
+
         auto loginResult = Auth::loginUser(db, reqBody["user"].s().begin(), reqBody["pass"].s().begin());
         if (loginResult.empty() || loginResult[0] == '{') {
             res.code = HTTP_CODE_UNAUTHORIZED;

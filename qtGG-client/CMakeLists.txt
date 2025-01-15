@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.30)
-project(qtGG)
+project(qtGG-client)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
@@ -13,10 +13,12 @@ find_package(Qt6 COMPONENTS
   Widgets
   REQUIRED)
 
-add_executable(qtGG main.cpp
+add_executable(qtGG-client main.cpp
         ListWindow/ListWindow.cpp
-        ListWindow/ListWindow.hpp)
-target_link_libraries(qtGG
+        ListWindow/ListWindow.hpp
+        ../qtGG-accmgr/LoginWindow.cpp
+        ../qtGG-accmgr/LoginWindow.hpp)
+target_link_libraries(qtGG-client
   Qt::Core
   Qt::Gui
   Qt::Widgets
