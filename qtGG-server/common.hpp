@@ -3,7 +3,16 @@
 #include <crow.h>
 #include <QString>
 
+inline constexpr int HTTP_CODE_BAD_REQUEST = 400;
 inline constexpr int HTTP_CODE_UNAUTHORIZED = 401;
+inline constexpr int HTTP_CODE_FORBIDDEN = 403;
+inline constexpr int HTTP_CODE_INTERNAL_SERVER_ERROR = 500;
+
+
+inline std::string jsonWrite(const crow::json::wvalue::object &json) {
+    crow::json::wvalue wvalue(json);
+    return wvalue.dump();
+}
 
 template <typename T>
 T getRandInt(T min, T max) {
@@ -33,22 +42,14 @@ inline std::string base64UrlEncode(std::string_view data) {
 }
 
 inline std::string base64UrlDecode(std::string_view msg) {
-    int pad = 0;
-    switch (msg.size() % 4) {
-        case 2: pad = 2; break;
-        case 3: pad = 1; break;
-        case 0: pad = 0; break;
-        default: return "";
-    }
-    std::string str = std::string(msg);
-    for (int i = 0; i < pad; i++) {
-        str.append("=");
-    }
-
-    auto decoded = crow::utility::base64decode(str.data(), str.size());
+    auto decoded = crow::utility::base64decode(msg.data(), msg.size());
     return decoded;
 }
 
 inline QString toQString(std::string_view str) {
     return QString::fromStdString({str.data(), str.size()});
+}
+
+inline std::string_view toStringView(const crow::json::detail::r_string& str) {
+    return {str.begin(), str.end()};
 }

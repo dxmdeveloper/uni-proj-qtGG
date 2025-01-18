@@ -15,7 +15,7 @@ namespace Ui {
           jwt(jwt),
           client(new Client(this)) {
         // Child Widgets
-        registrationDialog = new RegistrationDialog(this);
+        registrationDialog = new RegistrationDialog(client, this);
         registrationDialog->setModal(true);
 
         // UI
@@ -83,6 +83,12 @@ namespace Ui {
         connect(client, SIGNAL(loginError(std::string)), this, SLOT(onErrorResponse(std::string)));
         connect(loginButton, SIGNAL(clicked()), this, SLOT(onLoginButtonClicked()));
         connect(registerButton, SIGNAL(clicked()), this, SLOT(onRegisterButtonClicked()));
+        connect(registrationDialog, SIGNAL(serverHostnameEstablished(QString)), this,
+                SLOT(setServerHostname(QString)));
+    }
+
+    void LoginWindow::setServerHostname(const QString &hostname) {
+        serverInput->setText(hostname);
     }
 
     void LoginWindow::onLoginButtonClicked() {

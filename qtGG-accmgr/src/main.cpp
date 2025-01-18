@@ -1,4 +1,5 @@
-#include "exports.h"
+#define BUILD_LIBRARY 1
+#include "accmgr.h"
 
 #include <QApplication>
 #include "LoginWindow.hpp"
@@ -11,11 +12,11 @@ std::tuple<int, char **> createFakeArgs() {
     return {1, argv};
 }
 
-int main(int argc, char *argv[]) {
-    AccMgr_Output output = AccMgr_runAndReturnJWT();
-    int exitCode = output.error;
-    return exitCode;
-}
+ int main() {
+    // AccMgr_Output output = AccMgr_runAndReturnJWT();
+    // int exitCode = output.error;
+    // return exitCode;
+ }
 
 
 AccMgr_Output AccMgr_runAndReturnJWT() {

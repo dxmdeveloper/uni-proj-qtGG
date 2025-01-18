@@ -1,24 +1,33 @@
 #pragma once
 #include <QDialog>
 #include <QLineEdit>
+#include <QMetaType>
+
+#include "Client.hpp"
 
 namespace Ui {
     class RegistrationDialog : public QDialog {
         Q_OBJECT
 
     public:
-        RegistrationDialog(QWidget *parent = nullptr);
+        explicit RegistrationDialog(QWidget *parent = nullptr);
+        explicit RegistrationDialog(Client *client, QWidget *parent = nullptr);
+
+    signalss:
+        void serverHostnameEstablished(const QString& hostname);
+
 
     private slots:
-        void onRegistrationSuccess(const std::string &msg);
+        void onRegistrationSuccess();
 
-        void onRegistrationError(const std::string &error);
+        static void onRegistrationError(const std::string &error);
 
         void onSubmitClicked();
 
         void onInputChanged();
 
     private:
+        Client *client;
         QLineEdit *userInput;
         QLineEdit *emailInput;
         QLineEdit *passInput;

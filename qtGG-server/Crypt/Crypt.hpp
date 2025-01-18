@@ -6,7 +6,7 @@ namespace Crypt {
     /// @return 128 character long string.
     std::string sha512(std::string_view s);
 
-    std::string hmacSha256Base64(std::string_view s, const char key[], size_t keyLen = sizeof(SECRET_HMAC_KEY) - 1);
+    std::string hmacSha256Base64(std::string_view s, const char key[], size_t keyLen = sizeof(config::SECRET_HMAC_KEY) - 1);
 
     /// @brief hashes password using sha2 (512bit) algorithm and formats it.
     /// format: $salt$hash, where the hash starts at the 10th character.

@@ -3,10 +3,14 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QMessageBox>
 #include "internal_common.hpp"
 
 namespace Ui {
-    RegistrationDialog::RegistrationDialog(QWidget *parent) : QDialog(parent) {
+    RegistrationDialog::RegistrationDialog(QWidget *parent) : RegistrationDialog(new Client(this), parent) {
+    }
+
+    RegistrationDialog::RegistrationDialog(Client *client, QWidget *parent) : QDialog(parent), client(client) {
         auto *layout = new QVBoxLayout(this);
         auto *userLabel = new QLabel();
         auto *emailLabel = new QLabel();
@@ -61,24 +65,48 @@ namespace Ui {
         connect(emailInput, SIGNAL(textChanged(QString)), this, SLOT(onInputChanged()));
         connect(passInput, SIGNAL(textChanged(QString)), this, SLOT(onInputChanged()));
         connect(repeatInput, SIGNAL(textChanged(QString)), this, SLOT(onInputChanged()));
+        connect(registerButton, SIGNAL(clicked()), this, SLOT(onSubmitClicked()));
+
+        connect(client, SIGNAL(registrationSuccess()), this, SLOT(onRegistrationSuccess()));
+        connect(client, SIGNAL(registrationError(std::string)), this, SLOT(onRegistrationError(std::string)));
     }
 
-    void RegistrationDialog::onRegistrationSuccess(const std::string &msg) {
+    void RegistrationDialog::onRegistrationSuccess() {
+        serverHostnameEstablished(this->serverInput->text());
+
+        QMessageBox msgBox;
+        msgBox.setIcon(QMessageBox::Information);
+        msgBox.setWindowTitle(tr("Registration success"));
+        msgBox.setText(tr("Registration success"));
+        msgBox.exec();
+
+        this->close();
     }
 
     void RegistrationDialog::onRegistrationError(const std::string &error) {
+        QMessageBox msgBox;
+        msgBox.setIcon(QMessageBox::Critical);
+        msgBox.setWindowTitle(tr("Registration Error"));
+        msgBox.setText(QString::fromStdString(error));
+        msgBox.exec();
     }
 
     void RegistrationDialog::onSubmitClicked() {
+        auto user = userInput->text().toStdString();
+        auto email = emailInput->text().toStdString();
+        auto pass = passInput->text().toStdString();
+        auto server = serverInput->text();
+        client->setServer(server);
+        client->registerUser(user, email, pass);
     }
 
     void RegistrationDialog::onInputChanged() {
         bool conditionsMatch = true;
-        conditionsMatch &= (userInput->text().isEmpty() == false);
-        conditionsMatch &= (emailInput->text().isEmpty() == false);
-        conditionsMatch &= (passInput->text().isEmpty() == false);
+        conditionsMatch &= (!userInput->text().isEmpty());
+        conditionsMatch &= (!emailInput->text().isEmpty());
+        conditionsMatch &= (!passInput->text().isEmpty());
         conditionsMatch &= (repeatInput->text() == passInput->text());
-        conditionsMatch &= (serverInput->text().isEmpty() == false);
+        conditionsMatch &= (!serverInput->text().isEmpty());
 
         registerButton->setEnabled(conditionsMatch);
     }

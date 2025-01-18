@@ -1,11 +1,14 @@
 #pragma once
 
 #ifdef _MSC_VER
-#   define EXPORT extern "C" __declspec( dllexport )
+#   ifdef BUILD_LIBRARY
+#       define EXPORT extern "C" __declspec( dllexport )
+#   else
+#       define EXPORT extern "C" __declspec( dllimport )
+#   endif
 #else
 #   define EXPORT extern "C"
 #endif
-
 
 struct AccMgr_Output {
     char *jwt;

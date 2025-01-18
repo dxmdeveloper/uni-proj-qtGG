@@ -1,6 +1,9 @@
 #include "Auth.hpp"
 #include "../Crypt/Crypt.hpp"
 #include <QSqlError>
+#include "../common.hpp"
+#include "../config.hpp"
+#include <QSqlQuery>
 
 namespace Auth {
 
@@ -15,12 +18,12 @@ namespace Auth {
         if (!result)
             throw std::exception();
 
-        if (!result || query.next())
+        if (query.next())
             return false;
 
         // Hash password
         auto salt = Crypt::generateSalt();
-        auto hash = Crypt::passwordHashSha512(password, salt, SECRET_PEPPER);
+        auto hash = Crypt::passwordHashSha512(password, salt, config::SECRET_PEPPER);
 
         // Add user to the database
         query.prepare("INSERT INTO users(username, email, pass_hash) VALUES (?, ?, ?)");
@@ -52,7 +55,7 @@ namespace Auth {
         // Verify password
         auto dbHashStr = query.value(1).toString();
         auto salt = dbHashStr.mid(1, dbHashStr.indexOf("$", 1) - 1);
-        auto passHash = Crypt::passwordHashSha512(password, salt.toStdString(), SECRET_PEPPER);
+        auto passHash = Crypt::passwordHashSha512(password, salt.toStdString(), config::SECRET_PEPPER);
 
         if (passHash != dbHashStr.toStdString())
             return R"({"error":"invalid password"})";
@@ -75,7 +78,7 @@ namespace Auth {
         auto encBody = base64UrlEncode(payload.data(), payload.size());
 
         std::string out = encHeader + '.' + encBody;
-        return out + '.' + Crypt::hmacSha256Base64(out, SECRET_HMAC_KEY);
+        return out + '.' + Crypt::hmacSha256Base64(out, config::SECRET_HMAC_KEY);
     }
 
     static bool verifyJwt(std::string_view jwt) {
@@ -87,14 +90,14 @@ namespace Auth {
         auto signature = jwt.substr(sigPos + 1);
         auto rest = jwt.substr(0, sigPos);
 
-        auto computedHash = Crypt::hmacSha256Base64(rest, SECRET_HMAC_KEY);
+        auto computedHash = Crypt::hmacSha256Base64(rest, config::SECRET_HMAC_KEY);
 
         return computedHash == signature;
     }
 
-    std::string readJwt(std::string_view token) {
+    crow::json::rvalue validateAndReadJWT(std::string_view token) {
         if (!verifyJwt(token))
-            return "";
+            return {};
 
         // Slice token to extract a payload
         // if jwt has been verified we can assume that dot will be found
@@ -102,12 +105,54 @@ namespace Auth {
         token = token.substr(payloadPos);
         token = token.substr(0, token.find_first_of('.'));
 
-        return base64UrlDecode(token);
+        return crow::json::load(base64UrlDecode(token));
     }
 
-    bool doesPasswordMeetsRequirements(std::string_view password) {
-        if (password.length() < 8) return false;
-        if (password.length() > 64) return false;
+    crow::json::rvalue validateAndReadJWT(const crow::request &req) {
+        auto auth = req.get_header_value("Authorization");
+        if (auth.starts_with("Bearer ") || auth.starts_with("bearer ")) {
+            auth = auth.substr(7);
+        }
+        return validateAndReadJWT(auth);
+    }
+
+    bool handleAuthorizationHeader(crow::json::rvalue &out_jwt, const crow::request &req, crow::response &res) {
+        out_jwt = Auth::validateAndReadJWT(req);
+        if (out_jwt.size() <= 2) {
+            res.code = HTTP_CODE_UNAUTHORIZED;
+            res.end();
+            return false;
+        }
+        return true;
+    }
+
+    bool validatePassword(std::string_view password) {
+        if (password.length() < config::PASS_MIN_LEN) return false;
+        if (password.length() > config::PASS_MAX_LEN) return false;
+        return true;
+    }
+
+    bool validateUsername(std::string_view username) {
+        if (username.empty()) return false;
+        if (username.length() > USER_FIELD_LEN) return false;
+        for (auto c: username) {
+            if (!isalnum(c)) return false;
+        }
+        return true;
+    }
+
+    bool validateEmail(std::string_view email) {
+        bool atFound = false;
+        if (email.length() > EMAIL_FIELD_LEN) return false;
+        for (auto c: email) {
+            if (c == '@' && !atFound) {
+                atFound = true;
+                continue;
+            }
+            if (!isalnum(c) && c != '.') return false;
+        }
+        if (!atFound) return false;
+        if (email[email.length() - 1] == '@') return false;
         return true;
     }
 }

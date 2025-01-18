@@ -1,4 +1,3 @@
-#TODO: turn into dynamic library
 cmake_minimum_required(VERSION 3.30)
 project(qtGG-accmgr)
 
@@ -16,15 +15,20 @@ find_package(Qt6 COMPONENTS
         REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
+add_library(qtGG-accmgr SHARED
+        src/LoginWindow.cpp
+        src/LoginWindow.hpp
+        src/main.cpp
+        src/RegistrationDialog.cpp
+        src/RegistrationDialog.hpp
+        src/internal_common.hpp
+        src/Client.cpp
+        src/Client.hpp
+        include/accmgr.h)
 
-add_executable(qtGG-accmgr LoginWindow.cpp LoginWindow.hpp
-        main.cpp
-        RegistrationDialog.cpp
-        RegistrationDialog.hpp
-        internal_common.hpp
-        Client.cpp
-        Client.hpp
-        exports.h)
+include_directories(include)
+
+set_target_properties(qtGG-accmgr PROPERTIES PUBLIC_HEADER include/accmgr.h)
 
 target_link_libraries(qtGG-accmgr nlohmann_json::nlohmann_json)
 target_link_libraries(qtGG-accmgr
@@ -33,4 +37,3 @@ target_link_libraries(qtGG-accmgr
         Qt::Widgets
         Qt::Network
 )
-

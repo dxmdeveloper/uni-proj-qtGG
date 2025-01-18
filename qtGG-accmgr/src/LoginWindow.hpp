@@ -13,12 +13,12 @@ namespace Ui {
         Q_OBJECT
 
     public:
-        LoginWindow(std::string *jwt, QWidget *parent = nullptr);
+        explicit LoginWindow(std::string *jwt, QWidget *parent = nullptr);
 
-    public:
-        std::string *jwt;
 
     private slots:
+        void setServerHostname(const QString &hostname);
+
         void onLoginButtonClicked();
 
         static void onErrorResponse(const std::string &error);
@@ -28,11 +28,12 @@ namespace Ui {
         void onRegisterButtonClicked();
 
     private:
+        std::string *jwt;
         QLineEdit *serverInput;
         QLineEdit *userInput;
         QLineEdit *passInput;
         QCheckBox *rememberMeCheckBox;
-        Client *client;
         RegistrationDialog *registrationDialog;
+        Client *client;
     };
 }
