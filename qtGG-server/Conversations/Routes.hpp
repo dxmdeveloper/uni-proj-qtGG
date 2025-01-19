@@ -20,9 +20,10 @@ namespace Conversations::routes {
     /// POST /sendMessage
     /// @params: conversation_id, msg
     /// @return: {} / error;
-    std::string sendMessage(std::reference_wrapper<QSqlDatabase> db, uint64_t conversationId, time_t since);
+    void sendMessage(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res);
 
-    /// GET /getMessages/<conversation_id>?since=<since>
+    /// GET /getMessages/<conversation_id>/<since>
     /// @return [{"id":uint64,"sender":uint64,"send_at":int64,"msg":string}...]
-    std::string getMessages(std::reference_wrapper<QSqlDatabase> db, const crow::request &req);
+    void getMessages(std::reference_wrapper<QSqlDatabase> db, crow::request req, crow::response &res, uint64_t conv,
+                     int64_t since);
 }

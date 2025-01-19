@@ -10,6 +10,17 @@ namespace Auth {
     std::unordered_map<uint64_t, int64_t> g_issuedTokens{};
     std::timed_mutex g_issuedTokensMutex{};
 
+    bool isUserActive(QSqlDatabase &db, uint64_t userId) {
+        QSqlQuery query(db);
+        query.prepare("SELECT 1 FROM users WHERE id=? AND active=true");
+        query.addBindValue(quint64(userId));
+        if (!query.exec()) {
+            CROW_LOG_ERROR << query.lastError().text().toStdString();
+            throw std::runtime_error("database error");
+        }
+        return query.next();
+    }
+
     bool registerUser(QSqlDatabase &db, std::string_view username, std::string_view email, std::string_view password) {
         // Check if user already exists
         QSqlQuery query(db);
@@ -63,11 +74,18 @@ namespace Auth {
         if (passHash != dbHashStr.toStdString())
             return R"({"error":"invalid password"})";
 
+        auto userId = static_cast<uint64_t>(query.value(0).toULongLong());
         // Make jwt
         crow::json::wvalue jwtPayload({
-            {"id", query.value(0).toString().toStdString()},
+            {"id", userId}
         });
 
+        if (g_issuedTokensMutex.try_lock_for(std::chrono::milliseconds(200))) {
+            if (g_issuedTokens.contains(userId) && g_issuedTokens.at(userId) == 0) {
+                g_issuedTokens.erase(userId);
+            }
+            g_issuedTokensMutex.unlock();
+        }
         return generateJwt(jwtPayload.dump());
     }
 
@@ -75,20 +93,29 @@ namespace Auth {
         // add issued field to the payload
         auto jsonPayload = crow::json::load(payload.data(), payload.size());
         auto userId = jsonPayload["id"].u();
+        bool failed = false;
         crow::json::wvalue newPayload(jsonPayload);
 
         // mutex lock
         if (g_issuedTokensMutex.try_lock_for(std::chrono::milliseconds(200))) {
-            if(!g_issuedTokens.contains(userId)) {
+            if (!g_issuedTokens.contains(userId)) {
                 g_issuedTokens[userId] = time(nullptr);
             }
-            newPayload["issued"] = g_issuedTokens.at(userId);
+            auto serverVal = g_issuedTokens.at(userId);
+            if (serverVal == 0) {
+                // JWT has been revoked meanwhile
+                failed = true;
+            } else {
+                newPayload["issued"] = g_issuedTokens.at(userId);
+            }
             g_issuedTokensMutex.unlock();
         } else {
-            CROW_LOG_WARNING << "Mutex try_lock_for timeout. JWT \"issued\" field not assigned";
+            CROW_LOG_WARNING << "Mutex try_lock_for timeout.";
+            newPayload["issued"] = time(nullptr);
         }
         // mutex unlocked
 
+        if (failed) return "";
         crow::json::wvalue header({
             {"alg", "HS256"},
             {"typ", "jwt"}
@@ -101,7 +128,8 @@ namespace Auth {
         return out + '.' + Crypt::hmacSha256Base64(out, config::SECRET_HMAC_KEY);
     }
 
-    static bool verifyJwt(std::string_view jwt) {
+    static bool verifyJwtHash(std::string_view jwt) {
+        // check hash
         auto sigPos = jwt.find_last_of('.');
 
         if (sigPos == std::string_view::npos || sigPos == jwt.size() - 1)
@@ -115,32 +143,54 @@ namespace Auth {
         return computedHash == signature;
     }
 
-    crow::json::rvalue validateAndReadJWT(std::string_view token) {
-        if (!verifyJwt(token))
+    crow::json::rvalue readJWTAndVerifyHash(std::string_view token) {
+        if (!verifyJwtHash(token))
             return {};
 
         // Slice token to extract a payload
-        // if jwt has been verified we can assume that dot will be found
+        // if jwt hash has been verified we can assume that dot will be found
         auto payloadPos = token.find_first_of('.') + 1;
         token = token.substr(payloadPos);
         token = token.substr(0, token.find_first_of('.'));
 
-        return crow::json::load(base64UrlDecode(token));
+        auto payload = crow::json::load(base64UrlDecode(token));
+        return payload;
     }
 
-    crow::json::rvalue validateAndReadJWT(const crow::request &req) {
+    crow::json::rvalue readJWTAndVerifyHash(const crow::request &req) {
         auto auth = req.get_header_value("Authorization");
         if (auth.starts_with("Bearer ") || auth.starts_with("bearer ")) {
             auth = auth.substr(7);
         }
-        return validateAndReadJWT(auth);
+        return readJWTAndVerifyHash(auth);
     }
 
-    bool handleAuthorizationHeader(crow::json::rvalue &out_jwt, const crow::request &req, crow::response &res) {
-        out_jwt = Auth::validateAndReadJWT(req);
+    bool handleAuthorizationHeader(QSqlDatabase &db, crow::json::rvalue &out_jwt, const crow::request &req,
+                                   crow::response &res) {
+        out_jwt = Auth::readJWTAndVerifyHash(req);
+
         if (out_jwt.size() <= 2) {
             res.code = HTTP_CODE_UNAUTHORIZED;
-            res.end();
+            return false;
+        }
+        // check if verification is needed
+        auto userId = out_jwt["id"].u();
+        bool needsVerification = true;
+
+        // mutex lock
+        if (g_issuedTokensMutex.try_lock_for(std::chrono::milliseconds(200))) {
+            if (g_issuedTokens.contains(userId) && g_issuedTokens.at(userId) == out_jwt["issued"].u())
+                needsVerification = false;
+            g_issuedTokensMutex.unlock();
+        }
+        // mutex unlocked
+
+        if (!needsVerification)
+            return true;
+
+        // TODO: More validations, especially for permissions
+        if (!isUserActive(db, userId)) {
+            res.code = HTTP_CODE_UNAUTHORIZED;
             return false;
         }
         return true;

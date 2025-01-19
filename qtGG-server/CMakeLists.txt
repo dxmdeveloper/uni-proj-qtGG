@@ -25,7 +25,11 @@ add_executable(qtGG-server main.cpp
         Conversations/Messages.cpp
         Conversations/Messages.hpp
         Conversations/Routes.cpp
-        Conversations/Routes.hpp)
+        Conversations/Routes.hpp
+        Users/Users.cpp
+        Users/Users.hpp
+        Users/Routes.cpp
+        Users/Routes.hpp)
 target_link_libraries(qtGG-server PUBLIC Crow::Crow)
 target_link_libraries(qtGG-server PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(qtGG-server PRIVATE Qt6::Sql Qt6::Core)

@@ -4,6 +4,7 @@
 
 namespace Conversations {
     inline constexpr int KEY_FIELD_LEN = 5000;
+    inline constexpr int MESSAGE_FIELD_LEN = 500;
 
     // === Conversations in general ===
     uint64_t findConversation(QSqlDatabase &db, uint64_t user1, uint64_t user2);

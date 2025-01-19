@@ -4,14 +4,32 @@
 #include "../common.hpp"
 #include "Conversation.hpp"
 #include "KeyExchange.hpp"
+#include "Messages.hpp"
 
 namespace Conversations::routes {
     void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
+        CROW_ROUTE(app, "/startConversation")([&](const crow::request &req, crow::response &res) {
+            startConversation(db, req, res);
+            res.end();
+        });
+        CROW_ROUTE(app, "/exchangeKey")([&](const crow::request &req, crow::response &res) {
+            exchangeKey(db, req, res);
+            res.end();
+        });
+        CROW_ROUTE(app, "/sendMessage")([&](const crow::request &req, crow::response &res) {
+            sendMessage(db, req, res);
+            res.end();
+        });
+        CROW_ROUTE(app, "/getMessages/<int>/<int>")(
+            [&](const crow::request &req, crow::response &res, uint64_t c, int64_t s) {
+                getMessages(db, req, res, c, s);
+                res.end();
+        });
     }
 
     void startConversation(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {
         crow::json::rvalue jwt{};
-        if (!Auth::handleAuthorizationHeader(jwt, req, res)) return;
+        if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
 
         auto userId = jwt["id"].u();
 
@@ -21,16 +39,14 @@ namespace Conversations::routes {
         auto cId = createConversationIfNotExists(db, userId, target);
         if (cId == UINT64_MAX) {
             res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
-            res.end();
             return;
         }
         res.body = jsonWrite({{"conversation_id", cId}});
-        res.end();
     }
 
     void exchangeKey(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {
         crow::json::rvalue jwt{};
-        if (!Auth::handleAuthorizationHeader(jwt, req, res)) return;
+        if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
 
         auto userId = jwt["id"].u();
         auto reqJson = crow::json::load(req.body);
@@ -42,13 +58,14 @@ namespace Conversations::routes {
             auto key = toStringView(reqJson["key"].s());
             if (key.size() > KEY_FIELD_LEN) {
                 res.body = jsonWrite({{"error", "key is too long"}});
-                res.end();
                 return;
             }
-            bool authorized = authFunc(db, exchangeId, userId);
+
+            bool authorized = (jwt.has("exk_id") && jwt["exk_id"].u() == exchangeId)
+                              || authFunc(db, exchangeId, userId);
+
             if (!authorized) {
                 res.code = HTTP_CODE_FORBIDDEN;
-                res.end();
                 return;
             }
             exchangeFunc(db, exchangeId, key);
@@ -59,21 +76,19 @@ namespace Conversations::routes {
                 auto convId = reqJson["conversation_id"].u();
                 if (!isUserInConversation(db, convId, userId)) {
                     res.code = HTTP_CODE_FORBIDDEN;
-                    res.end();
                     return;
                 }
                 auto exchangeId = startKeyExchange(db, userId, reqJson["exchange_id"].u());
                 if (exchangeId == UINT64_MAX) {
                     res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
-                    res.end();
                     return;
                 }
 
+                // TODO: generate jwt with exk_id
                 res.body = jsonWrite({
                     {"success", (exchangeId != UINT64_MAX - 1)},
                     {"exchange_id", exchangeId}
                 });
-                res.end();
                 return;
             }
             case 1: {
@@ -81,11 +96,9 @@ namespace Conversations::routes {
                 bool success = offerAESKey(db, exchangeId, userId);
                 if (!success) {
                     res.body = jsonWrite({{"error", "exchange not found"}});
-                    res.end();
                     return;
                 }
                 res.body = "{}";
-                res.end();
                 return;
             }
             case 2: actualExchange(isReqUserInKeyExchange, sendRSAKey);
@@ -94,8 +107,73 @@ namespace Conversations::routes {
                 break;
             default:
                 res.code = HTTP_CODE_BAD_REQUEST;
-                res.end();
                 break;
         }
+    }
+
+    void sendMessage(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {
+        crow::json::rvalue jwt{};
+        if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
+
+        auto userId = jwt["id"].u();
+        auto reqJson = crow::json::load(req.body);
+
+        if (!reqJson.has("conversation_id") || !reqJson.has("msg")) {
+            res.code = HTTP_CODE_BAD_REQUEST;
+            return;
+        }
+        auto conv = reqJson["conversation_id"].u();
+
+        if (!isUserInConversation(db, conv, userId)) {
+            res.code = HTTP_CODE_FORBIDDEN;
+            return;
+        }
+
+        auto msg = toStringView(reqJson["msg"].s());
+        if (msg.size() == 0) {
+            res.body = jsonWrite({{"error", "message is empty"}});
+            return;
+        }
+        if (msg.size() > MESSAGE_FIELD_LEN) {
+            res.body = jsonWrite({{"error", std::format("message is too long (limit: {})", MESSAGE_FIELD_LEN)}});
+            return;
+        }
+
+        auto result = Conversations::sendMessage(db, conv, userId, msg);
+        if (!result) {
+            res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
+            return;
+        }
+        res.body = "{}";
+    }
+
+    void getMessages(std::reference_wrapper<QSqlDatabase> db, const crow::request req, crow::response &res,
+                     uint64_t conv, int64_t since) {
+        crow::json::rvalue jwt{};
+        if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
+
+        auto userId = jwt["id"].u();
+        auto reqJson = crow::json::load(req.body);
+
+        if (!isUserInConversation(db, conv, userId)) {
+            res.code = HTTP_CODE_FORBIDDEN;
+            return;
+        }
+
+        auto messages = Conversations::getMessages(db, conv, since, 512);
+        std::vector<crow::json::wvalue> jMsgs;
+        jMsgs.reserve(messages.size());
+
+        for (const auto &msg: messages) {
+            crow::json::wvalue obj{
+                {"id", msg.id},
+                {"sender", msg.sender},
+                {"send_at", msg.sendAt},
+                {"msg", msg.message}
+            };
+            jMsgs.push_back(obj);
+        }
+        crow::json::wvalue json(jMsgs);
+        res.body = json.dump();
     }
 }

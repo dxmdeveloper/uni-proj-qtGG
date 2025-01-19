@@ -7,12 +7,30 @@
 #include "../common.hpp"
 
 namespace Conversations {
-    std::vector<Message> getMessages(QSqlDatabase &db, uint64_t conversationId, std::time_t since) {
+    bool sendMessage(QSqlDatabase &db, uint64_t conversationId, uint64_t senderId, std::string_view message) {
+        QSqlQuery query(db);
+        query.prepare("INSERT INTO messages (conversation, sender, msg) VALUES (?, ?, ?)");
+        query.addBindValue(quint64(conversationId));
+        query.addBindValue(quint64(senderId));
+        query.addBindValue(toQString(message));
+        if (!query.exec()) {
+            CROW_LOG_ERROR << query.lastError().text().toStdString();
+            return false;
+        }
+        return true;
+    }
+
+    std::vector<Message> getMessages(QSqlDatabase &db, uint64_t conversationId, std::int64_t since, size_t limit) {
         std::vector<Message> messages{};
         QSqlQuery query(db);
-        query.prepare("SELECT id, sender, send_at, message FROM messages WHERE conversation=? AND send_at>=?");
+        query.prepare("SELECT * FROM ("
+                      "   SELECT id, sender, send_at, message"
+                      "   FROM messages WHERE conversation=? AND send_at>=?)"
+                      "   ORDER BY send_at DESC LIMIT=?) m"
+                      " ORDER BY send_at ASC");
         query.addBindValue(quint64(conversationId));
         query.addBindValue(qint64(since));
+        query.addBindValue(quint64(limit));
         if (!query.exec()) {
             CROW_LOG_ERROR << query.lastError().text().toStdString();
             throw std::exception();

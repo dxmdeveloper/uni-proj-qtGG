@@ -8,8 +8,9 @@
 #include <QCoreApplication>
 
 #include "common.hpp"
-#include "Auth/Auth.hpp"
 #include "Auth/Routes.hpp"
+#include "Users/Routes.hpp"
+#include "Conversations/Routes.hpp"
 
 bool connectToDatabase(QSqlDatabase &db) {
     db.setHostName(config::DATABASE_ADDR);
@@ -37,6 +38,8 @@ int main(int argc, char *argv[]) {
     // curl -d '{"user":"test3","pass":"aoeuaoeu"}' 127.0.0.1/login
     // /login /register
     Auth::routes::createRoutes(serverApp, db);
+    Users::routes::createRoutes(serverApp, db);
+    Conversations::routes::createRoutes(serverApp, db);
 
     serverApp.port(80).multithreaded().run();
 }

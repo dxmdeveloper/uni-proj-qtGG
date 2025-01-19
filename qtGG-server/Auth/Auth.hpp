@@ -10,6 +10,8 @@ namespace Auth {
     constexpr uint USER_FIELD_LEN = 30;
     constexpr uint EMAIL_FIELD_LEN = 80;
 
+    bool isUserActive(QSqlDatabase &db, uint64_t userId);
+
     bool registerUser(QSqlDatabase &db, std::string_view username, std::string_view email, std::string_view password);
 
     std::string loginUser(QSqlDatabase &db, std::string_view user, std::string_view password);
@@ -18,13 +20,13 @@ namespace Auth {
 
     /// @brief verifies json web token and read its payload.
     /// @return json string with payload. If verification failed will return an empty string.
-    crow::json::rvalue validateAndReadJWT(std::string_view token);
+    crow::json::rvalue readJWTAndVerifyHash(std::string_view token);
 
-    crow::json::rvalue validateAndReadJWT(const crow::request &req);
+    crow::json::rvalue readJWTAndVerifyHash(const crow::request &req);
 
     /// @brief read and validate JWT token. In case it's invalid. sends response with HTTP_UNAUTHORIZED code.
     /// @return true if token is valid, so function shall continue. false otherwise
-    bool handleAuthorizationHeader(crow::json::rvalue &out_jwt, const crow::request &req, crow::response &res);
+    bool handleAuthorizationHeader(QSqlDatabase &db, crow::json::rvalue &out_jwt, const crow::request &req, crow::response &res);
 
     // Validation
     bool validatePassword(std::string_view password);

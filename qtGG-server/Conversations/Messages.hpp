@@ -12,6 +12,6 @@ namespace Conversations {
     };
 
     bool sendMessage(QSqlDatabase &db, uint64_t conversationId, uint64_t senderId, std::string_view message);
-    std::vector<Message> getMessages(QSqlDatabase &db, uint64_t conversationId, std::time_t since);
+    std::vector<Message> getMessages(QSqlDatabase &db, uint64_t conversationId, std::int64_t since, size_t limit);
 }
 
