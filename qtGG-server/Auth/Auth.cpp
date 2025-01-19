@@ -1,11 +1,14 @@
 #include "Auth.hpp"
-#include "../Crypt/Crypt.hpp"
 #include <QSqlError>
+#include <QSqlQuery>
+#include <chrono>
+#include "../Crypt/Crypt.hpp"
 #include "../common.hpp"
 #include "../config.hpp"
-#include <QSqlQuery>
 
 namespace Auth {
+    std::unordered_map<uint64_t, int64_t> g_issuedTokens{};
+    std::timed_mutex g_issuedTokensMutex{};
 
     bool registerUser(QSqlDatabase &db, std::string_view username, std::string_view email, std::string_view password) {
         // Check if user already exists
@@ -69,6 +72,23 @@ namespace Auth {
     }
 
     std::string generateJwt(std::string_view payload) {
+        // add issued field to the payload
+        auto jsonPayload = crow::json::load(payload.data(), payload.size());
+        auto userId = jsonPayload["id"].u();
+        crow::json::wvalue newPayload(jsonPayload);
+
+        // mutex lock
+        if (g_issuedTokensMutex.try_lock_for(std::chrono::milliseconds(200))) {
+            if(!g_issuedTokens.contains(userId)) {
+                g_issuedTokens[userId] = time(nullptr);
+            }
+            newPayload["issued"] = g_issuedTokens.at(userId);
+            g_issuedTokensMutex.unlock();
+        } else {
+            CROW_LOG_WARNING << "Mutex try_lock_for timeout. JWT \"issued\" field not assigned";
+        }
+        // mutex unlocked
+
         crow::json::wvalue header({
             {"alg", "HS256"},
             {"typ", "jwt"}

@@ -4,6 +4,9 @@
 #include <string_view>
 
 namespace Auth {
+    // <user_id, time_issued>
+    extern std::unordered_map<uint64_t, int64_t> g_issuedTokens;
+
     constexpr uint USER_FIELD_LEN = 30;
     constexpr uint EMAIL_FIELD_LEN = 80;
 

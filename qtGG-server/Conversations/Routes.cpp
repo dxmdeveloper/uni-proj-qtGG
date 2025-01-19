@@ -6,6 +6,9 @@
 #include "KeyExchange.hpp"
 
 namespace Conversations::routes {
+    void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
+    }
+
     void startConversation(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {
         crow::json::rvalue jwt{};
         if (!Auth::handleAuthorizationHeader(jwt, req, res)) return;

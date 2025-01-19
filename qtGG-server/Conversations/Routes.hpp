@@ -5,6 +5,7 @@
 #include <crow.h>
 
 namespace Conversations::routes {
+    void createRoutes(crow::SimpleApp &app, QSqlDatabase &db);
 
     /// POST /startConversation
     /// @params: user

@@ -9,6 +9,7 @@
 
 #include "common.hpp"
 #include "Auth/Auth.hpp"
+#include "Auth/Routes.hpp"
 
 bool connectToDatabase(QSqlDatabase &db) {
     db.setHostName(config::DATABASE_ADDR);

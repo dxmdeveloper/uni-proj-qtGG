@@ -6,7 +6,12 @@
 
 namespace Auth::routes {
     void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
-
+        CROW_ROUTE(app, "/login") ([&](const crow::request &req) {
+            return login(db, req);
+        });
+        CROW_ROUTE(app, "/register")([&](const crow::request &req) {
+            return register_(db, req);
+        });
     }
 
     std::string login(std::reference_wrapper<QSqlDatabase> db, const crow::request &req) {
