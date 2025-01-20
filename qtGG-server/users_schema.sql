@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS key_exchange (
     req_user     BIGINT NOT NULL,
     key_owner    BIGINT,
     conversation BIGINT NOT NULL,
-    enc_key      VARCHAR(5000) NOT NULL,
+    enc_key      VARCHAR(5000),
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (req_user) REFERENCES users(id) ON DELETE CASCADE,
@@ -42,3 +42,4 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (sender) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (conversation) REFERENCES conversations(id) ON DELETE CASCADE
 );
+

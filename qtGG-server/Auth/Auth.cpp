@@ -2,7 +2,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <chrono>
-#include "../Crypt/Crypt.hpp"
+#include <crypto.hpp>
 #include "../common.hpp"
 #include "../config.hpp"
 
@@ -12,7 +12,7 @@ namespace Auth {
 
     bool isUserActive(QSqlDatabase &db, uint64_t userId) {
         QSqlQuery query(db);
-        query.prepare("SELECT 1 FROM users WHERE id=? AND active=true");
+        query.prepare("SELECT 1 FROM users WHERE id=? AND active=TRUE");
         query.addBindValue(quint64(userId));
         if (!query.exec()) {
             CROW_LOG_ERROR << query.lastError().text().toStdString();
@@ -116,60 +116,30 @@ namespace Auth {
         // mutex unlocked
 
         if (failed) return "";
-        crow::json::wvalue header({
-            {"alg", "HS256"},
-            {"typ", "jwt"}
-        });
-        std::string headerStr = header.dump();
-        auto encHeader = base64UrlEncode(headerStr);
-        auto encBody = base64UrlEncode(payload.data(), payload.size());
 
-        std::string out = encHeader + '.' + encBody;
-        return out + '.' + Crypt::hmacSha256Base64(out, config::SECRET_HMAC_KEY);
+        auto newPayloadStr = newPayload.dump();
+        JwtWriter jwtWriter(payload, config::SECRET_HMAC_KEY);
+
+        return jwtWriter.toString();
     }
-
-    static bool verifyJwtHash(std::string_view jwt) {
-        // check hash
-        auto sigPos = jwt.find_last_of('.');
-
-        if (sigPos == std::string_view::npos || sigPos == jwt.size() - 1)
-            return false;
-
-        auto signature = jwt.substr(sigPos + 1);
-        auto rest = jwt.substr(0, sigPos);
-
-        auto computedHash = Crypt::hmacSha256Base64(rest, config::SECRET_HMAC_KEY);
-
-        return computedHash == signature;
-    }
-
-    crow::json::rvalue readJWTAndVerifyHash(std::string_view token) {
-        if (!verifyJwtHash(token))
-            return {};
-
-        // Slice token to extract a payload
-        // if jwt hash has been verified we can assume that dot will be found
-        auto payloadPos = token.find_first_of('.') + 1;
-        token = token.substr(payloadPos);
-        token = token.substr(0, token.find_first_of('.'));
-
-        auto payload = crow::json::load(base64UrlDecode(token));
-        return payload;
-    }
+    
 
     crow::json::rvalue readJWTAndVerifyHash(const crow::request &req) {
         auto auth = req.get_header_value("Authorization");
         if (auth.starts_with("Bearer ") || auth.starts_with("bearer ")) {
             auth = auth.substr(7);
         }
-        return readJWTAndVerifyHash(auth);
+        JwtReader jwtReader(auth);
+        if (!jwtReader.isFormatValid() || !jwtReader.validateHash(config::SECRET_HMAC_KEY))
+            return {};
+        return crow::json::load(jwtReader.getPayload());
     }
 
     bool handleAuthorizationHeader(QSqlDatabase &db, crow::json::rvalue &out_jwt, const crow::request &req,
                                    crow::response &res) {
         out_jwt = Auth::readJWTAndVerifyHash(req);
 
-        if (out_jwt.size() <= 2) {
+        if (!out_jwt.has("id")) {
             res.code = HTTP_CODE_UNAUTHORIZED;
             return false;
         }

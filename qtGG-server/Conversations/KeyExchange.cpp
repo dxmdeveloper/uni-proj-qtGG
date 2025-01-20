@@ -55,8 +55,9 @@ namespace Conversations {
         QSqlQuery query(db);
         // Also checks if user is in the conversation
         query.prepare("SELECT 1 FROM key_exchange k"
+                      " INNER JOIN conversations c ON k.conversation=c.id"
                       " WHERE step=0 AND k.id=? AND (c.user1=? OR c.user2=?)"
-                      " INNER JOIN conversations c ON k.conversation=c.id");
+                      );
         query.addBindValue(quint64(keyExchangeId));
         query.addBindValue(quint64(keyOwnerId));
         query.addBindValue(quint64(keyOwnerId));
@@ -95,7 +96,7 @@ namespace Conversations {
         if (!query.next())
             return false;
 
-        query.prepare("UPDATE key_exchange SET step=?, updated_at=CURRENT_TIMESTAMP, key=? WHERE id=?");
+        query.prepare("UPDATE key_exchange SET step=?, updated_at=CURRENT_TIMESTAMP, enc_key=? WHERE id=?");
         query.addBindValue(prev_step + 1);
         query.addBindValue(toQString(key));
         query.addBindValue(quint64(keyExchangeId));
@@ -125,6 +126,36 @@ namespace Conversations {
             return false;
         }
         return true;
+    }
+
+    std::string getExchangeKey(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t user) {
+        QSqlQuery query(db);
+        query.prepare("SELECT enc_key FROM key_exchange WHERE id=? AND (req_user=? OR key_owner=?)");
+        query.addBindValue(quint64(keyExchangeId));
+        query.addBindValue(quint64(user));
+        query.addBindValue(quint64(user));
+        if (!query.exec()) {
+            CROW_LOG_ERROR << query.lastError().text().toStdString();
+            throw std::exception();
+        }
+        if (!query.next())
+            return "";
+
+        return query.value(0).toString().toStdString();
+    }
+
+    int getKeyExchangeCurrentStep(QSqlDatabase &db, uint64_t keyExchangeId) {
+        QSqlQuery query(db);
+        query.prepare("SELECT step FROM key_exchange WHERE id=?");
+        query.addBindValue(quint64(keyExchangeId));
+        if (!query.exec()) {
+            CROW_LOG_ERROR << query.lastError().text().toStdString();
+            return -1;
+        }
+        if (!query.next())
+            return -1;
+
+        return query.value(0).toInt();
     }
 
     bool isKeyOwnerInExchange(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t keyOwnerId) {

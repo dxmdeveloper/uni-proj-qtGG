@@ -18,10 +18,6 @@ namespace Auth {
 
     std::string generateJwt(std::string_view payload);
 
-    /// @brief verifies json web token and read its payload.
-    /// @return json string with payload. If verification failed will return an empty string.
-    crow::json::rvalue readJWTAndVerifyHash(std::string_view token);
-
     crow::json::rvalue readJWTAndVerifyHash(const crow::request &req);
 
     /// @brief read and validate JWT token. In case it's invalid. sends response with HTTP_UNAUTHORIZED code.

@@ -17,6 +17,12 @@ namespace Conversations::routes {
     /// @return: success:bool / error; step=0: exchange_id
     void exchangeKey(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res);
 
+    // GET /exchangeKey/<exchange_id>/step
+    void exchangeKeyGetStep(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res, uint64_t exchangeId);
+
+    // GET /exchangeKey/<exchange_id>/key
+    void exchangeKeyGetKey(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res, uint64_t exchangeId);
+
     /// POST /sendMessage
     /// @params: conversation_id, msg
     /// @return: {} / error;

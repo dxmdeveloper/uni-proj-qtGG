@@ -7,8 +7,7 @@
 namespace Users {
     std::vector<UsersListEntry> getUsersList(QSqlDatabase &db) {
         QSqlQuery query(db);
-        query.prepare("SELECT id, username FROM users WHERE active=1");
-        if (query.exec()) {
+        if (!query.exec("SELECT id, username FROM users WHERE active=TRUE")) {
             CROW_LOG_ERROR << query.lastError().text().toStdString();
             throw std::runtime_error("getUsersList() SQL Query failed");
         }

@@ -17,6 +17,7 @@ namespace Users::routes {
         auto list = Users::getUsersList(db);
 
         std::vector<crow::json::wvalue> jUsers;
+        jUsers.reserve(list.size());
         for (const auto &user : list) {
             crow::json::wvalue jUser {
                 {"id", user.id},

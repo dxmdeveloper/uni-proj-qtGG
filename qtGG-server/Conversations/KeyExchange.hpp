@@ -4,6 +4,7 @@
 
 namespace Conversations {
 
+
     // === Encryption key exchange ===
     /// @return key_exchange.id on success,
     /// UINT64_MAX internal error, UINT64_MAX - 1 exchange failed (both users requesting)
@@ -12,6 +13,9 @@ namespace Conversations {
     bool sendRSAKey(QSqlDatabase &db, uint64_t keyExchangeId, std::string_view key);
     bool sendAESKey(QSqlDatabase &db, uint64_t keyExchangeId, std::string_view key);
     bool keyExchangeCleanup(QSqlDatabase &db, uint64_t keyExchangeId);
+
+    std::string getExchangeKey(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t user);
+    int getKeyExchangeCurrentStep(QSqlDatabase &db, uint64_t keyExchangeId);
 
     bool isKeyOwnerInExchange(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t keyOwnerId);
     bool isReqUserInKeyExchange(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t reqUserId);

@@ -6,10 +6,10 @@
 
 namespace Auth::routes {
     void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
-        CROW_ROUTE(app, "/login") ([&](const crow::request &req) {
+        CROW_ROUTE(app, "/login").methods(crow::HTTPMethod::POST)([&](const crow::request &req) {
             return login(db, req);
         });
-        CROW_ROUTE(app, "/register")([&](const crow::request &req) {
+        CROW_ROUTE(app, "/register").methods(crow::HTTPMethod::POST)([&](const crow::request &req) {
             return register_(db, req);
         });
     }
@@ -35,8 +35,8 @@ namespace Auth::routes {
         if (!validatePassword(pass))
             return std::format(R"({{"error":"Password doesn't meet requirements. "
                            "Password length must be {}-{} characters long."}})",
-                       config::PASS_MIN_LEN,
-                       config::PASS_MAX_LEN);
+                               config::PASS_MIN_LEN,
+                               config::PASS_MAX_LEN);
 
         if (!validateEmail(email)) {
             if (email.length() > EMAIL_FIELD_LEN)

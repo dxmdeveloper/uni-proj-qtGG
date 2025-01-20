@@ -1,16 +1,27 @@
-#include "Crypt.hpp"
-
+#include <Crypt.hpp>
+#include <Encoding.hpp>
+#include <algorithm>
 #include <cstring>
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
 #include <string>
-#include "../common.hpp"
-#include <crow.h>
-#include "../config.hpp"
+#include <vector>
+#include <random>
+
+template<typename T>
+static T getRandInt(T min, T max) {
+    static_assert(std::is_integral_v<T>);
+
+    static std::random_device rd;
+    static std::mt19937 generator(rd());
+    std::uniform_int_distribution<T> dist(min, max);
+
+    return dist(generator);
+}
 
 namespace Crypt {
     template<bool useHMAC, const EVP_MD*(*evpMd)(void), typename StrT, typename ArgStrT>
-    static StrT msgDigest(ArgStrT msg, const char *hmacKey, size_t hmacKeyLen, bool useBase64=false) {
+    static StrT msgDigest(ArgStrT msg, const char *hmacKey, size_t hmacKeyLen, bool useBase64 = false) {
         unsigned char buffer[EVP_MAX_MD_SIZE]{};
         unsigned int md_len = 0;
         if constexpr (useHMAC) {
@@ -28,7 +39,7 @@ namespace Crypt {
         }
 
         if (useBase64)
-            return base64UrlEncode(buffer, md_len);
+            return Encoding::base64UrlEncode(buffer, md_len);
 
 
         // hex to characters
@@ -42,6 +53,10 @@ namespace Crypt {
 
     std::string sha512(std::string_view s) {
         return msgDigest<false, EVP_sha512, std::string, std::string_view>(s, nullptr, 0);
+    }
+
+    std::string hmacSha256Base64(std::string_view s, std::string_view key) {
+        return hmacSha256Base64(s, key.data(), key.size());
     }
 
     std::string hmacSha256Base64(std::string_view s, const char key[], size_t keyLen) {

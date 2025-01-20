@@ -8,23 +8,36 @@
 
 namespace Conversations::routes {
     void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
-        CROW_ROUTE(app, "/startConversation")([&](const crow::request &req, crow::response &res) {
-            startConversation(db, req, res);
-            res.end();
-        });
-        CROW_ROUTE(app, "/exchangeKey")([&](const crow::request &req, crow::response &res) {
-            exchangeKey(db, req, res);
-            res.end();
-        });
-        CROW_ROUTE(app, "/sendMessage")([&](const crow::request &req, crow::response &res) {
-            sendMessage(db, req, res);
-            res.end();
-        });
+        CROW_ROUTE(app, "/startConversation").methods(crow::HTTPMethod::POST)(
+            [&](const crow::request &req, crow::response &res) {
+                startConversation(db, req, res);
+                res.end();
+            });
+        CROW_ROUTE(app, "/exchangeKey").methods(crow::HTTPMethod::POST)(
+            [&](const crow::request &req, crow::response &res) {
+                exchangeKey(db, req, res);
+                res.end();
+            });
+        CROW_ROUTE(app, "/sendMessage").methods(crow::HTTPMethod::POST)(
+            [&](const crow::request &req, crow::response &res) {
+                sendMessage(db, req, res);
+                res.end();
+            });
         CROW_ROUTE(app, "/getMessages/<int>/<int>")(
             [&](const crow::request &req, crow::response &res, uint64_t c, int64_t s) {
                 getMessages(db, req, res, c, s);
                 res.end();
-        });
+            });
+        CROW_ROUTE(app, "/exchangeKey/<int>/step")(
+            [&](const crow::request &req, crow::response &res, uint64_t e) {
+                exchangeKeyGetStep(db, req, res, e);
+                res.end();
+            });
+        CROW_ROUTE(app, "/exchangeKey/<int>/key")(
+            [&](const crow::request &req, crow::response &res, uint64_t e) {
+                exchangeKeyGetKey(db, req, res, e);
+                res.end();
+            });
     }
 
     void startConversation(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {
@@ -78,7 +91,7 @@ namespace Conversations::routes {
                     res.code = HTTP_CODE_FORBIDDEN;
                     return;
                 }
-                auto exchangeId = startKeyExchange(db, userId, reqJson["exchange_id"].u());
+                auto exchangeId = startKeyExchange(db, convId, userId);
                 if (exchangeId == UINT64_MAX) {
                     res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
                     return;
@@ -103,12 +116,35 @@ namespace Conversations::routes {
             }
             case 2: actualExchange(isReqUserInKeyExchange, sendRSAKey);
                 break;
-            case 3: actualExchange(isKeyOwnerInExchange, sendRSAKey);
+            case 3: actualExchange(isKeyOwnerInExchange, sendAESKey);
                 break;
             default:
                 res.code = HTTP_CODE_BAD_REQUEST;
                 break;
         }
+    }
+
+    void exchangeKeyGetStep(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res,
+        uint64_t exchangeId) {
+        crow::json::rvalue jwt{};
+        if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
+
+        auto step = getKeyExchangeCurrentStep(db, exchangeId);
+        if (step == -1) {
+            res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
+            return;
+        }
+        res.body = jsonWrite({{"step", step}});
+    }
+
+    void exchangeKeyGetKey(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res,
+        uint64_t exchangeId) {
+        crow::json::rvalue jwt{};
+        if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
+
+        auto userId = jwt["id"].u();
+        auto key = getExchangeKey(db, exchangeId, userId); // function checks if user is in exchange
+        res.body = jsonWrite({{"key", key}});
     }
 
     void sendMessage(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {

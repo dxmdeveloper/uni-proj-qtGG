@@ -9,7 +9,7 @@
 namespace Conversations {
     bool sendMessage(QSqlDatabase &db, uint64_t conversationId, uint64_t senderId, std::string_view message) {
         QSqlQuery query(db);
-        query.prepare("INSERT INTO messages (conversation, sender, msg) VALUES (?, ?, ?)");
+        query.prepare("INSERT INTO messages (conversation, sender, message) VALUES (?, ?, ?)");
         query.addBindValue(quint64(conversationId));
         query.addBindValue(quint64(senderId));
         query.addBindValue(toQString(message));
@@ -23,11 +23,17 @@ namespace Conversations {
     std::vector<Message> getMessages(QSqlDatabase &db, uint64_t conversationId, std::int64_t since, size_t limit) {
         std::vector<Message> messages{};
         QSqlQuery query(db);
-        query.prepare("SELECT * FROM ("
-                      "   SELECT id, sender, send_at, message"
-                      "   FROM messages WHERE conversation=? AND send_at>=?)"
-                      "   ORDER BY send_at DESC LIMIT=?) m"
-                      " ORDER BY send_at ASC");
+        query.prepare(
+            "SELECT * FROM ("
+            "    SELECT id, sender, date_part('epoch', send_at) AS send_at, message "
+            "    FROM messages "
+            "    WHERE conversation = ? AND send_at >= to_timestamp(?) "
+            "    ORDER BY send_at DESC "
+            "    LIMIT ?"
+            ") m "
+            "ORDER BY send_at ASC"
+        );
+
         query.addBindValue(quint64(conversationId));
         query.addBindValue(qint64(since));
         query.addBindValue(quint64(limit));
