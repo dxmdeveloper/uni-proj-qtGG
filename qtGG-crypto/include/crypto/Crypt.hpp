@@ -18,4 +18,7 @@ namespace Crypt {
     /// @return 8 character string.
     std::string generateSalt();
 
+    /// @return pair of: private, public keys (in that order) in PEM format.
+    std::pair<std::string, std::string> generateRsaKeys(int keyBits);
+
 }

@@ -12,6 +12,8 @@
 #include "Users/Routes.hpp"
 #include "Conversations/Routes.hpp"
 
+#include <crypto.hpp>
+
 bool connectToDatabase(QSqlDatabase &db) {
     db.setHostName(config::DATABASE_ADDR);
     db.setDatabaseName(config::DATABASE_NAME);
@@ -31,8 +33,14 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // Demo / test routes
     CROW_ROUTE(serverApp, "/")([]() {
         return "HTTP Server is set up!";
+    });
+
+    CROW_ROUTE(serverApp, "/RSA2048")([]() {
+        auto [prv, pub] = Crypt::generateRsaKeys(2048);
+        return prv + "\n" + pub;
     });
 
     // curl -d '{"user":"test3","pass":"aoeuaoeu"}' 127.0.0.1/login

@@ -2,10 +2,13 @@
 #include <Encoding.hpp>
 #include <algorithm>
 #include <cstring>
+#include <memory>
 #include <openssl/sha.h>
 #include <openssl/hmac.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 #include <string>
-#include <vector>
 #include <random>
 
 template<typename T>
@@ -86,5 +89,41 @@ namespace Crypt {
             }
         }
         return {salt};
+    }
+
+    std::pair<std::string, std::string> generateRsaKeys(int keyBits) {
+        int result{};
+        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
+            EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr),
+            EVP_PKEY_CTX_free
+        );
+        result = EVP_PKEY_keygen_init(ctx.get());
+        if (result <= 0) return {};
+
+        result = EVP_PKEY_CTX_set_rsa_keygen_bits(ctx.get(), keyBits);
+        if (result <= 0) return {};
+
+        // generate key pair
+        EVP_PKEY *pKey = nullptr;
+        result = EVP_PKEY_keygen(ctx.get(), &pKey);
+        if (result <= 0) return {};
+
+        auto scopedPtrPKey = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>(pKey, EVP_PKEY_free);
+
+        auto prvKeyBasicIO = std::unique_ptr<BIO, decltype(&BIO_free_all)>(
+            BIO_new(BIO_s_mem()), BIO_free_all);
+        auto pubKeyBasicIO = std::unique_ptr<BIO, decltype(&BIO_free_all)>(
+            BIO_new(BIO_s_mem()), BIO_free_all);
+
+        // write keys in PEM format
+        result = PEM_write_bio_PrivateKey(prvKeyBasicIO.get(), pKey, nullptr, nullptr, 0, nullptr, nullptr);
+        result &= PEM_write_bio_PUBKEY(pubKeyBasicIO.get(), pKey);
+        if (!result) return {};
+
+        char *prvKeyPEM = nullptr, *pubKeyPEM = nullptr;
+        size_t prvKeyLen = BIO_get_mem_data(prvKeyBasicIO.get(), &prvKeyPEM);
+        size_t pubKeyLen = BIO_get_mem_data(pubKeyBasicIO.get(), &pubKeyPEM);
+
+        return {std::string(prvKeyPEM, prvKeyLen), std::string(pubKeyPEM, pubKeyLen)};
     }
 }
