@@ -66,24 +66,17 @@ namespace Conversations::routes {
 
         auto step = reqJson["step"].u();
 
-        auto actualExchange = [&](auto authFunc, auto exchangeFunc) {
-            auto exchangeId = reqJson["exchange_id"].u();
+        auto actualExchange = [&](auto exchangeFunc, auto exchangeId) {
             auto key = toStringView(reqJson["key"].s());
             if (key.size() > KEY_FIELD_LEN) {
                 res.body = jsonWrite({{"error", "key is too long"}});
                 return;
             }
 
-            bool authorized = (jwt.has("exk_id") && jwt["exk_id"].u() == exchangeId)
-                              || authFunc(db, exchangeId, userId);
-
-            if (!authorized) {
-                res.code = HTTP_CODE_FORBIDDEN;
-                return;
-            }
             exchangeFunc(db, exchangeId, key);
         };
 
+        /// NOTE: reduced to 2 steps (from 4) that's why it's mad
         switch (step) {
             case 0: {
                 auto convId = reqJson["conversation_id"].u();
@@ -92,31 +85,18 @@ namespace Conversations::routes {
                     return;
                 }
                 auto exchangeId = startKeyExchange(db, convId, userId);
-                if (exchangeId == UINT64_MAX) {
-                    res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
+                actualExchange(sendRSAKey, exchangeId);
+            }
+                break;
+            case 1:
+                auto exchangeId = reqJson["exchange_id"].u();
+                bool authorized = isAllowedToGiveKey(db, exchangeId, userId);
+                if (!authorized) {
+                    res.code = HTTP_CODE_FORBIDDEN;
                     return;
                 }
 
-                // TODO: generate jwt with exk_id
-                res.body = jsonWrite({
-                    {"success", (exchangeId != UINT64_MAX - 1)},
-                    {"exchange_id", exchangeId}
-                });
-                return;
-            }
-            case 1: {
-                auto exchangeId = reqJson["exchange_id"].u();
-                bool success = offerAESKey(db, exchangeId, userId);
-                if (!success) {
-                    res.body = jsonWrite({{"error", "exchange not found"}});
-                    return;
-                }
-                res.body = "{}";
-                return;
-            }
-            case 2: actualExchange(isReqUserInKeyExchange, sendRSAKey);
-                break;
-            case 3: actualExchange(isKeyOwnerInExchange, sendAESKey);
+                actualExchange(sendAESKey, exchangeId);
                 break;
             default:
                 res.code = HTTP_CODE_BAD_REQUEST;

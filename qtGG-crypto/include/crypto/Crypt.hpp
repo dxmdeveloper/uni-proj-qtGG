@@ -21,4 +21,6 @@ namespace Crypt {
     /// @return pair of: private, public keys (in that order) in PEM format.
     std::pair<std::string, std::string> generateRsaKeys(int keyBits);
 
+    std::string encryptRsaBase64(std::string_view msg, std::string_view pubRsaPEM);
+
 }

@@ -51,42 +51,10 @@ namespace Conversations {
         return static_cast<uint64_t>(lastId.toULongLong());
     }
 
-    bool offerAESKey(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t keyOwnerId) {
-        QSqlQuery query(db);
-        // Also checks if user is in the conversation
-        query.prepare("SELECT 1 FROM key_exchange k"
-                      " INNER JOIN conversations c ON k.conversation=c.id"
-                      " WHERE step=0 AND k.id=? AND (c.user1=? OR c.user2=?)"
-                      );
-        query.addBindValue(quint64(keyExchangeId));
-        query.addBindValue(quint64(keyOwnerId));
-        query.addBindValue(quint64(keyOwnerId));
-
-        if (!query.exec()) {
-            CROW_LOG_ERROR << query.lastError().text().toStdString();
-            throw std::exception();
-        }
-
-        if (!query.next()) {
-            return false;
-        }
-
-        query.prepare("UPDATE key_exchange SET step=1, key_owner=?, updated_at=CURRENT_TIMESTAMP WHERE id=?");
-        query.addBindValue(quint64(keyOwnerId));
-        query.addBindValue(quint64(keyExchangeId));
-
-        if (!query.exec()) {
-            CROW_LOG_ERROR << query.lastError().text().toStdString();
-            throw std::exception();
-        }
-        return true;
-    }
-
-    template<int prev_step>
+    template<bool inc>
     bool sendKeyTmpl(QSqlDatabase &db, uint64_t keyExchangeId, std::string_view key) {
         QSqlQuery query(db);
-        query.prepare("SELECT 1 FROM key_exchange WHERE step=? AND id=?");
-        query.addBindValue(prev_step);
+        query.prepare("SELECT 1 FROM key_exchange WHERE step=0 AND id=?");
         query.addBindValue(quint64(keyExchangeId));
 
         if (!query.exec()) {
@@ -97,7 +65,7 @@ namespace Conversations {
             return false;
 
         query.prepare("UPDATE key_exchange SET step=?, updated_at=CURRENT_TIMESTAMP, enc_key=? WHERE id=?");
-        query.addBindValue(prev_step + 1);
+        query.addBindValue(inc ? 1 : 0);
         query.addBindValue(toQString(key));
         query.addBindValue(quint64(keyExchangeId));
 
@@ -109,11 +77,11 @@ namespace Conversations {
     }
 
     bool sendRSAKey(QSqlDatabase &db, uint64_t keyExchangeId, std::string_view key) {
-        return sendKeyTmpl<1>(db, keyExchangeId, key);
+        return sendKeyTmpl<false>(db, keyExchangeId, key);
     }
 
     bool sendAESKey(QSqlDatabase &db, uint64_t keyExchangeId, std::string_view key) {
-        return sendKeyTmpl<2>(db, keyExchangeId, key);
+        return sendKeyTmpl<true>(db, keyExchangeId, key);
     }
 
     bool keyExchangeCleanup(QSqlDatabase &db, uint64_t keyExchangeId) {
@@ -156,6 +124,20 @@ namespace Conversations {
             return -1;
 
         return query.value(0).toInt();
+    }
+
+    bool isAllowedToGiveKey(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t userId) {
+        QSqlQuery query(db);
+        query.prepare("SELECT 1 FROM key_exchange k INNER JOIN conversations c ON k.conversation=c.id"
+                      " WHERE k.id=? AND (c.user1=? OR c.user2=?)");
+        query.addBindValue(quint64(keyExchangeId));
+        query.addBindValue(quint64(userId));
+        query.addBindValue(quint64(userId));
+        if (!query.exec()) {
+            CROW_LOG_ERROR << query.lastError().text().toStdString();
+            return false;
+        }
+        return query.next();
     }
 
     bool isKeyOwnerInExchange(QSqlDatabase &db, uint64_t keyExchangeId, uint64_t keyOwnerId) {

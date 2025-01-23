@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
-#include <openssl/sha.h>
+// I Wish I had used botan for encryption
 #include <openssl/hmac.h>
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
@@ -125,5 +125,35 @@ namespace Crypt {
         size_t pubKeyLen = BIO_get_mem_data(pubKeyBasicIO.get(), &pubKeyPEM);
 
         return {std::string(prvKeyPEM, prvKeyLen), std::string(pubKeyPEM, pubKeyLen)};
+    }
+
+    std::string encryptRsaBase64(std::string_view msg, std::string_view pubRsaPEM) {
+        // TODO: error handling
+        if (pubRsaPEM.size() > 4096) return "";
+        auto keyLen = static_cast<int>(pubRsaPEM.size());
+        auto basicIO = std::unique_ptr<BIO, decltype(&BIO_free_all)>(
+            BIO_new_mem_buf(pubRsaPEM.data(), keyLen), BIO_free_all
+        );
+        if (!basicIO) return "";
+
+        EVP_PKEY *pKey = nullptr;
+        PEM_read_bio_PUBKEY(basicIO.get(), &pKey, nullptr, nullptr);
+
+        auto scopedPKey = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>(pKey, EVP_PKEY_free);
+
+        //std::vector<unsigned char> encrypted = std::vector<unsigned char>(EVP_PKEY_get_size(pKey));
+        auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
+            EVP_PKEY_CTX_new(pKey, nullptr), EVP_PKEY_CTX_free
+        );
+
+        EVP_PKEY_encrypt_init(ctx.get());
+        size_t encryptedSize;
+        auto *dataPtr = reinterpret_cast<const unsigned char *>(msg.data());
+        // Get size first
+        EVP_PKEY_encrypt(ctx.get(), nullptr, &encryptedSize, dataPtr, msg.size());
+        std::vector<unsigned char> encrypted(encryptedSize);
+        // Encrypt
+        EVP_PKEY_encrypt(ctx.get(), encrypted.data(), &encryptedSize, dataPtr, msg.size());
+        return Encoding::base64UrlEncode(encrypted.data(), encryptedSize);
     }
 }
