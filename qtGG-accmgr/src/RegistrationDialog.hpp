@@ -13,7 +13,7 @@ namespace Ui {
         explicit RegistrationDialog(QWidget *parent = nullptr);
         explicit RegistrationDialog(Client *client, QWidget *parent = nullptr);
 
-    signalss:
+    signals:
         void serverHostnameEstablished(const QString& hostname);
 
 

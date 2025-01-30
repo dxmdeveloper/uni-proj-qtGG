@@ -16,7 +16,7 @@ public:
 
     void registerUser(std::string_view user, std::string_view email, std::string_view password);
 
-signalss:
+signals:
     void loginSuccess(std::string jwt);
     void loginError(std::string error);
 

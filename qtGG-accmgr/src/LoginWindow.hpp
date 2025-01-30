@@ -14,6 +14,7 @@ namespace Ui {
 
     public:
         explicit LoginWindow(std::string *jwt, QWidget *parent = nullptr);
+        std::string getServer() const { return serverInput->text().toStdString(); }
 
 
     private slots:

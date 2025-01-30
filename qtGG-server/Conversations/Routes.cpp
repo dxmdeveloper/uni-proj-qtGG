@@ -49,12 +49,16 @@ namespace Conversations::routes {
         auto reqJson = crow::json::load(req.body);
         auto target = reqJson["user"].u();
 
-        auto cId = createConversationIfNotExists(db, userId, target);
+        bool created = false;
+        auto cId = createConversationIfNotExists(db, userId, target, &created);
         if (cId == UINT64_MAX) {
             res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
             return;
         }
-        res.body = jsonWrite({{"conversation_id", cId}});
+        res.body = jsonWrite({
+            {"conversation_id", cId},
+            {"created", created}
+        });
     }
 
     void exchangeKey(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {
@@ -65,15 +69,17 @@ namespace Conversations::routes {
         auto reqJson = crow::json::load(req.body);
 
         auto step = reqJson["step"].u();
+        auto exchangeId = uint64_t{};
+        bool authorized = false;
 
-        auto actualExchange = [&](auto exchangeFunc, auto exchangeId) {
+        auto actualExchange = [&](auto exchangeFunc, auto exId) -> bool {
             auto key = toStringView(reqJson["key"].s());
             if (key.size() > KEY_FIELD_LEN) {
                 res.body = jsonWrite({{"error", "key is too long"}});
-                return;
+                return false;
             }
 
-            exchangeFunc(db, exchangeId, key);
+            return exchangeFunc(db, exId, key);
         };
 
         /// NOTE: reduced to 2 steps (from 4) that's why it's mad
@@ -84,19 +90,22 @@ namespace Conversations::routes {
                     res.code = HTTP_CODE_FORBIDDEN;
                     return;
                 }
-                auto exchangeId = startKeyExchange(db, convId, userId);
-                actualExchange(sendRSAKey, exchangeId);
+                exchangeId = startKeyExchange(db, convId, userId);
+                bool result = actualExchange(sendRSAKey, exchangeId);
+                if (result) res.body = "{}";
             }
-                break;
-            case 1:
-                auto exchangeId = reqJson["exchange_id"].u();
-                bool authorized = isAllowedToGiveKey(db, exchangeId, userId);
+            break;
+            case 1: {
+                exchangeId = reqJson["exchange_id"].u();
+                authorized = isAllowedToGiveKey(db, exchangeId, userId);
                 if (!authorized) {
                     res.code = HTTP_CODE_FORBIDDEN;
                     return;
                 }
 
-                actualExchange(sendAESKey, exchangeId);
+                bool result = actualExchange(sendAESKey, exchangeId);
+                if (result) res.body = "{}";
+            }
                 break;
             default:
                 res.code = HTTP_CODE_BAD_REQUEST;
@@ -105,7 +114,7 @@ namespace Conversations::routes {
     }
 
     void exchangeKeyGetStep(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res,
-        uint64_t exchangeId) {
+                            uint64_t exchangeId) {
         crow::json::rvalue jwt{};
         if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
 
@@ -118,7 +127,7 @@ namespace Conversations::routes {
     }
 
     void exchangeKeyGetKey(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res,
-        uint64_t exchangeId) {
+                           uint64_t exchangeId) {
         crow::json::rvalue jwt{};
         if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
 
@@ -176,7 +185,7 @@ namespace Conversations::routes {
             return;
         }
 
-        auto messages = Conversations::getMessages(db, conv, since, 512);
+        auto messages = Conversations::getMessages<true>(db, conv, since, 512);
         std::vector<crow::json::wvalue> jMsgs;
         jMsgs.reserve(messages.size());
 

@@ -35,14 +35,17 @@ namespace Conversations {
         return query.next();
     }
 
-    uint64_t createConversationIfNotExists(QSqlDatabase &db, uint64_t user1, uint64_t user2) {
+    uint64_t createConversationIfNotExists(QSqlDatabase &db, uint64_t user1, uint64_t user2, bool *out_created) {
         if (user1 == user2)
             return UINT64_MAX;
 
         // ensure there is no such conversation
         auto existing = findConversation(db, user1, user2);
-        if (existing != UINT64_MAX)
+        if (existing != UINT64_MAX) {
+            if (out_created != nullptr)
+                *out_created = false;
             return static_cast<uint64_t>(existing);
+        }
 
         // sort user ids so user1 is always the smaller number
         if (user1 > user2)
@@ -60,6 +63,8 @@ namespace Conversations {
             CROW_LOG_ERROR << query.lastError().text().toStdString();
             return UINT64_MAX;
         }
+        if (out_created != nullptr)
+            *out_created = true;
         return static_cast<uint64_t>(lastId.toLongLong());
     }
 

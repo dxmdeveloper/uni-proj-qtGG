@@ -35,6 +35,8 @@ AccMgr_Output AccMgr_openLoginDialog() {
     if (!jwtStr.empty()) {
         output.jwt = new char[jwtStr.size() + 1];
         memcpy(output.jwt, jwtStr.c_str(), jwtStr.size() + 1);
+        output.server = new char[loginWindow->getServer().size() + 1];
+        memcpy(output.server, loginWindow->getServer().c_str(), loginWindow->getServer().size() + 1);
     } else output.error = appRet ? appRet : -2137;
     return output;
 }

@@ -10,7 +10,7 @@ namespace Conversations {
     uint64_t findConversation(QSqlDatabase &db, uint64_t user1, uint64_t user2);
     bool isUserInConversation(QSqlDatabase &db, uint64_t conversationId, uint64_t user);
     //bool doesConversationExist(QSqlDatabase &db, uint64_t id);
-    uint64_t createConversationIfNotExists(QSqlDatabase &db, uint64_t user1, uint64_t user2);
+    uint64_t createConversationIfNotExists(QSqlDatabase &db, uint64_t user1, uint64_t user2, bool *out_created);
     bool dropConversation(QSqlDatabase &db, uint64_t id);
 
 

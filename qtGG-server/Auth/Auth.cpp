@@ -77,7 +77,8 @@ namespace Auth {
         auto userId = static_cast<uint64_t>(query.value(0).toULongLong());
         // Make jwt
         crow::json::wvalue jwtPayload({
-            {"id", userId}
+            {"id", userId},
+            {"user", std::string(user.data(), user.length())}
         });
 
         if (g_issuedTokensMutex.try_lock_for(std::chrono::milliseconds(200))) {
@@ -118,7 +119,7 @@ namespace Auth {
         if (failed) return "";
 
         auto newPayloadStr = newPayload.dump();
-        JwtWriter jwtWriter(payload, config::SECRET_HMAC_KEY);
+        JwtWriter jwtWriter(newPayloadStr, config::SECRET_HMAC_KEY);
 
         return jwtWriter.toString();
     }

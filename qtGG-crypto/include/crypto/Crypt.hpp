@@ -1,5 +1,7 @@
 #pragma once
+#include <span>
 #include <string_view>
+#include <vector>
 
 namespace Crypt {
     /// @return 128 character long string.
@@ -23,4 +25,9 @@ namespace Crypt {
 
     std::string encryptRsaBase64(std::string_view msg, std::string_view pubRsaPEM);
 
+    std::string decryptRsaBase64(std::string_view msg, std::string_view prvRsaPEM);
+
+    std::string encryptAes256Base64(std::string_view msg, std::span<unsigned char> key);
+
+    std::string decryptAesBase64(std::string_view msg, std::span<unsigned char> key);
 }

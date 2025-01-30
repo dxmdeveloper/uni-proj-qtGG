@@ -28,7 +28,7 @@ namespace Conversations::routes {
     /// @return: {} / error;
     void sendMessage(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res);
 
-    /// GET /getMessages/<conversation_id>/<since>
+    /// GET /getMessages/<conversation_id>/<last_message_id>
     /// @return [{"id":uint64,"sender":uint64,"send_at":int64,"msg":string}...]
     void getMessages(std::reference_wrapper<QSqlDatabase> db, crow::request req, crow::response &res, uint64_t conv,
                      int64_t since);

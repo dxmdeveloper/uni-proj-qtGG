@@ -10,26 +10,41 @@ find_package(Qt6 COMPONENTS
         Core
         Gui
         Widgets
+        Network
         REQUIRED)
+
+find_package(OpenSSL)
+
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/include)
 
 # Add executable
 add_executable(qtGG-client src/main.cpp
         src/ListWindow/ListWindow.cpp
         src/ListWindow/ListWindow.hpp
         ../qtGG-accmgr/src/LoginWindow.cpp
-        ../qtGG-accmgr/src/LoginWindow.hpp)
+        ../qtGG-accmgr/src/LoginWindow.hpp
+        src/common.hpp
+        src/ChatWindow/ChatWindow.cpp
+        src/ChatWindow/ChatWindow.hpp)
 
 # Link Qt libraries
 target_link_libraries(qtGG-client
         Qt::Core
         Qt::Gui
         Qt::Widgets
+        Qt::Network
 )
+
+# Link the libqtGG-crypto.a static library
+target_link_libraries(qtGG-client ${CMAKE_CURRENT_SOURCE_DIR}/libs/libqtGG-crypto.a)
+# Link OpenSSL
+target_link_libraries(qtGG-client OpenSSL::SSL OpenSSL::Crypto)
 
 # --- Handle qtGG-accmgr shared library ---
 # Determine library file based on platform
 if(WIN32)
-    set(LIBRARY_NAME libqtGG-accmgr.dll)
+    set(LIBRARY_NAME qtGG-accmgr.dll)
 else()
     set(LIBRARY_NAME libqtGG-accmgr.so)
 endif()
@@ -63,6 +78,3 @@ endif()
 
 # Link the library from the source directory (temporary)
 target_link_libraries(qtGG-client "${SOURCE_LIBRARY_PATH}")
-
-# Include directories for accmgr
-include_directories(libs/include)
