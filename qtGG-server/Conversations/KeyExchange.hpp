@@ -23,4 +23,11 @@ namespace Conversations {
 
     bool handleFailedKeyExchange(QSqlDatabase &db, uint64_t conversationId);
 
+    struct PendingRequest {
+        uint64_t conversationId = 0;
+        uint64_t exchangeId = 0;
+        std::string key{};
+    };
+
+    std::vector<PendingRequest> getPendingKeyExchanges(QSqlDatabase &db, uint64_t userId);
 }

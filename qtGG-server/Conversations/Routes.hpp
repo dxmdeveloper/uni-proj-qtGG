@@ -13,8 +13,9 @@ namespace Conversations::routes {
     void startConversation(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res);
 
     /// POST /exchangeKey
-    /// @params: step; step=0: conversation_id; step>0: exchange_id; step>1 key
-    /// @return: success:bool / error; step=0: exchange_id
+    /// @params: step, key; step=0: conversation_id; step>0: exchange_id;
+    /// @return: success:bool / error; step=0: exchange_id if success=true
+    /// example resp: {"success":true,"exchange_id":uint64} resp {"success":false}
     void exchangeKey(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res);
 
     // GET /exchangeKey/<exchange_id>/step
@@ -30,6 +31,10 @@ namespace Conversations::routes {
 
     /// GET /getMessages/<conversation_id>/<last_message_id>
     /// @return [{"id":uint64,"sender":uint64,"send_at":int64,"msg":string}...]
-    void getMessages(std::reference_wrapper<QSqlDatabase> db, crow::request req, crow::response &res, uint64_t conv,
+    void getMessages(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res, uint64_t conv,
                      int64_t since);
+
+    /// GET /keyExchangeRequests
+    /// @return [{"exchange_id":uint64,"conversation_id":uint64,"key":string}...]
+    void keyExchangeRequests(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res);
 }

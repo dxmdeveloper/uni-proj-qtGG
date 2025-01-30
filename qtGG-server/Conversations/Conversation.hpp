@@ -12,7 +12,7 @@ namespace Conversations {
     //bool doesConversationExist(QSqlDatabase &db, uint64_t id);
     uint64_t createConversationIfNotExists(QSqlDatabase &db, uint64_t user1, uint64_t user2, bool *out_created);
     bool dropConversation(QSqlDatabase &db, uint64_t id);
-
+    bool cleanConversation(QSqlDatabase &db, uint64_t id);
 
 
 }

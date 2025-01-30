@@ -6,6 +6,17 @@
 #include "KeyExchange.hpp"
 #include "Messages.hpp"
 
+void logRequest(const crow::request& req) {
+    CROW_LOG_INFO << "Request URL: " << req.url;
+    CROW_LOG_INFO << "Request Method: " << crow::method_name(req.method);
+    CROW_LOG_INFO << "Request Headers:";
+    for (const auto& header : req.headers) {
+        CROW_LOG_INFO << header.first << ": " << header.second;
+    }
+    CROW_LOG_INFO << "Request Body: " << req.body;
+}
+
+
 namespace Conversations::routes {
     void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
         CROW_ROUTE(app, "/startConversation").methods(crow::HTTPMethod::POST)(
@@ -30,12 +41,18 @@ namespace Conversations::routes {
             });
         CROW_ROUTE(app, "/exchangeKey/<int>/step")(
             [&](const crow::request &req, crow::response &res, uint64_t e) {
+                //logRequest(req);
                 exchangeKeyGetStep(db, req, res, e);
                 res.end();
             });
         CROW_ROUTE(app, "/exchangeKey/<int>/key")(
             [&](const crow::request &req, crow::response &res, uint64_t e) {
                 exchangeKeyGetKey(db, req, res, e);
+                res.end();
+            });
+        CROW_ROUTE(app, "/keyExchangeRequests")(
+            [&](const crow::request &req, crow::response &res) {
+                keyExchangeRequests(db, req, res);
                 res.end();
             });
     }
@@ -90,9 +107,24 @@ namespace Conversations::routes {
                     res.code = HTTP_CODE_FORBIDDEN;
                     return;
                 }
+                // Start key exchange
                 exchangeId = startKeyExchange(db, convId, userId);
-                bool result = actualExchange(sendRSAKey, exchangeId);
-                if (result) res.body = "{}";
+
+                if (exchangeId == UINT64_MAX) {
+                    res.code = HTTP_CODE_INTERNAL_SERVER_ERROR;
+                    return;
+                }
+                if (exchangeId == UINT64_MAX - 1) {
+                    // Delete previous messages because both users have no keys to decrypt them
+                    cleanConversation(db, convId);
+                    res.body = jsonWrite({{"success", false}});
+                    return;
+                }
+                // set key
+                if (actualExchange(sendRSAKey, exchangeId))
+                    res.body = jsonWrite({{"success", true}, {"exchange_id", exchangeId}});
+                else
+                    res.body = jsonWrite({{"error", "internal error"}});
             }
             break;
             case 1: {
@@ -106,7 +138,7 @@ namespace Conversations::routes {
                 bool result = actualExchange(sendAESKey, exchangeId);
                 if (result) res.body = "{}";
             }
-                break;
+            break;
             default:
                 res.code = HTTP_CODE_BAD_REQUEST;
                 break;
@@ -116,6 +148,7 @@ namespace Conversations::routes {
     void exchangeKeyGetStep(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res,
                             uint64_t exchangeId) {
         crow::json::rvalue jwt{};
+
         if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
 
         auto step = getKeyExchangeCurrentStep(db, exchangeId);
@@ -172,7 +205,7 @@ namespace Conversations::routes {
         res.body = "{}";
     }
 
-    void getMessages(std::reference_wrapper<QSqlDatabase> db, const crow::request req, crow::response &res,
+    void getMessages(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res,
                      uint64_t conv, int64_t since) {
         crow::json::rvalue jwt{};
         if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
@@ -200,5 +233,26 @@ namespace Conversations::routes {
         }
         crow::json::wvalue json(jMsgs);
         res.body = json.dump();
+    }
+
+    void keyExchangeRequests(std::reference_wrapper<QSqlDatabase> db, const crow::request &req, crow::response &res) {
+        crow::json::rvalue jwt{};
+        if (!Auth::handleAuthorizationHeader(db, jwt, req, res)) return;
+
+        auto userId = jwt["id"].u();
+
+        auto pending = getPendingKeyExchanges(db, userId);
+        std::vector<crow::json::wvalue> jPending;
+        jPending.reserve(pending.size());
+        for (auto &p: pending) {
+            crow::json::wvalue obj{
+                {"exchange_id", p.exchangeId},
+                {"conversation_id", p.conversationId},
+                {"key", p.key}
+            };
+            jPending.push_back(obj);
+        }
+
+        res.body = crow::json::wvalue(jPending).dump();
     }
 }

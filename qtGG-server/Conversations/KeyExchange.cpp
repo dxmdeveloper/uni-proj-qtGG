@@ -1,4 +1,6 @@
 #include "KeyExchange.hpp"
+
+#include <QSqlDriver>
 #include <QSqlQuery>
 #include <QSqlError>
 #include <crow/logging.h>
@@ -19,8 +21,10 @@ namespace Conversations {
         if (query.next()) {
             auto keyExchangeId = static_cast<uint64_t>(query.value(0).toULongLong());
             auto step = query.value(1).toInt();
+            // user has already requested, can update the key
             if (step == 0)
                 return keyExchangeId;
+            // clean after a previous exchange
             keyExchangeCleanup(db, keyExchangeId);
         }
 
@@ -86,7 +90,7 @@ namespace Conversations {
 
     bool keyExchangeCleanup(QSqlDatabase &db, uint64_t keyExchangeId) {
         QSqlQuery query(db);
-        query.prepare("DROP FROM key_exchange WHERE id=?");
+        query.prepare("DELETE FROM key_exchange WHERE id=?");
         query.addBindValue(quint64(keyExchangeId));
 
         if (!query.exec()) {
@@ -168,7 +172,7 @@ namespace Conversations {
         // delete key exchange record
         QSqlQuery query(db);
         db.transaction();
-        query.prepare("DROP FROM key_exchange WHERE conversation=?");
+        query.prepare("DELETE FROM key_exchange WHERE conversation=?");
         query.addBindValue(quint64(conversationId));
         auto result = query.exec();
         if (!result) {
@@ -187,5 +191,32 @@ namespace Conversations {
         }
         db.commit();
         return true;
+    }
+
+    std::vector<PendingRequest> getPendingKeyExchanges(QSqlDatabase &db, uint64_t userId) {
+        QSqlQuery query(db);
+        query.prepare(
+            "SELECT c.id, k.id, k.enc_key FROM key_exchange k"
+            " INNER JOIN conversations c ON k.conversation=c.id"
+            " WHERE (c.user1=:u OR c.user2=:u) AND k.step=0 AND k.req_user<>:u");
+        query.bindValue(":u", quint64(userId));
+        if (!query.exec()) {
+            CROW_LOG_ERROR << query.lastError().text().toStdString();
+            return {};
+        }
+        std::vector<PendingRequest> result;
+        if (db.driver()->hasFeature(QSqlDriver::QuerySize)) {
+            result.reserve(query.size());
+        }
+
+        while (query.next()) {
+            result.push_back(PendingRequest{
+                .conversationId = static_cast<uint64_t>(query.value(0).toULongLong()),
+                .exchangeId = static_cast<uint64_t>(query.value(1).toULongLong()),
+                .key = query.value(2).toString().toStdString()
+            });
+        }
+
+        return result;
     }
 }

@@ -14,24 +14,17 @@
 
 #include <crypto.hpp>
 
-bool connectToDatabase(QSqlDatabase &db) {
-    db.setHostName(config::DATABASE_ADDR);
-    db.setDatabaseName(config::DATABASE_NAME);
-    db.setUserName(config::DATABASE_USER);
-    db.setPassword(config::DATABASE_PASSWORD);
-    return db.open();
-}
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
     crow::SimpleApp serverApp;
 
+    // test connection
     QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL");
     bool connected = connectToDatabase(db);
     if (!connected) {
-        CROW_LOG_CRITICAL << "Connection to database failed.";
         return -1;
-    }
+
 
     // Demo / test routes
     CROW_ROUTE(serverApp, "/")([]() {

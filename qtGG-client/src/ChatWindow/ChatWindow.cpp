@@ -2,6 +2,7 @@
 
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QDebug>
 #include <nlohmann/json.hpp>
 
 #include <crypto.hpp>
@@ -15,7 +16,8 @@
 namespace Ui {
     ChatWindow::ChatWindow(QString server, QWidget *parent)
         : QMainWindow(parent),
-          server(std::move(server)) {
+          server(std::move(server)),
+          bgKeyExchNetAccessMgr(new QNetworkAccessManager(this)) {
         auto *central = new QWidget();
         auto *vLayout = new QVBoxLayout();
         auto *chatPanelLayout = new QHBoxLayout();
@@ -51,17 +53,22 @@ namespace Ui {
 
         // signals
         connect(sendButton, &QPushButton::clicked, this, &ChatWindow::onSubmit);
+        connect(bgKeyExchNetAccessMgr, &QNetworkAccessManager::finished, this, &ChatWindow::onPendingKeyExchReply);
+
+        // background processing
+        pendingKeyExchChkTimerId = startTimer(BG_KEY_EXCH_CHK_INTERVAL);
     }
 
     ChatWindow::~ChatWindow() {
-        killAllTimers();
+        killChatTimers();
+        killTimer(pendingKeyExchChkTimerId);
     }
 
     void ChatWindow::setChat(quint64 userId, const QString &username) {
         // cleanup after previous chat
         chat->clear();
         lastMsgId = 0;
-        killAllTimers();
+        killChatTimers();
 
         delete getMsgNetAccessMgr;
         delete sendMsgNetAccessMgr;
@@ -121,7 +128,7 @@ namespace Ui {
         }
 
         if (!keys.contains(currentChatId)) {
-            isPendingKeyExchange = true;
+            isRequestingKeyExchange = true;
             // Generate rsa keys
             rsaKeyPair = Crypt::generateRsaKeys(2048);
             nlohmann::json keyReqJson({
@@ -143,10 +150,7 @@ namespace Ui {
 
     void ChatWindow::onGetMsgReply(QNetworkReply *reply) {
         if (reply->error()) {
-            QMessageBox msgBox;
-            msgBox.setText("Failed to get messages.");
-            msgBox.setIcon(QMessageBox::Critical);
-            msgBox.exec();
+            chat->append("Failed to get messages.<br>");
             return;
         }
 
@@ -175,11 +179,7 @@ namespace Ui {
             json = nlohmann::json::parse(reply->readAll().toStdString());
 
         if (reply->error() || json.contains("error")) {
-            QMessageBox msgBox;
-            msgBox.setWindowTitle("Failed to exchange key.");
-            msgBox.setText(reply->errorString());
-            msgBox.setIcon(QMessageBox::Critical);
-            msgBox.exec();
+            chat->append("Failed to exchange keys.<br>");
             return;
         }
 
@@ -194,10 +194,16 @@ namespace Ui {
                 QString("%1/%2/key")
                 .arg(server + KEY_EXCHANGE_URL)
                 .arg(currentChatId)));
-            request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
             request.setRawHeader("Authorization", g_jwt.c_str());
             keyExchNetAccessMgr->get(request);
         }
+
+        auto setTimersAfterSuccess = [&]() {
+            killTimer(keyExchTimerId.value());
+            keyExchTimerId.reset();
+            getMsgTimerId = startTimer(GET_MSG_INTERVAL);
+        };
 
         if (json.contains("key")) {
             auto aesKey = json["key"].get<std::string>();
@@ -207,10 +213,53 @@ namespace Ui {
             std::copy_n(aesDecoded.begin(), key.size(), key.begin());
             addAesKey(key);
 
-            // timers
-            killTimer(keyExchTimerId.value());
-            keyExchTimerId.reset();
-            getMsgTimerId = startTimer(GET_MSG_INTERVAL);
+            setTimersAfterSuccess();
+        }
+
+        if (json.contains("success") && !json["success"].get<bool>()) {
+            chat->clear();
+            auto aesKey = generateAesKey();
+            addAesKey(aesKey);
+            isRequestingKeyExchange = false;
+            setTimersAfterSuccess();
+        }
+    }
+
+    void ChatWindow::onPendingKeyExchReply(QNetworkReply *reply) {
+        if (reply->error()) {
+            qDebug() << "Failed to check for pending key exchange.";
+            qDebug() << reply->errorString();
+            return;
+        }
+        auto json = nlohmann::json::parse(reply->readAll().toStdString());
+        if (json.empty()) return;
+
+        // answer one request at a time
+        for (auto &req: json) {
+            auto convId = req["conversation_id"].get<quint64>();
+            if (!keys.contains(convId)) continue;
+
+            auto rsaKey = req["key"].get<std::string>();
+            auto exchangeId = req["exchange_id"].get<quint64>();
+
+            auto aesKey = keys.at(convId);
+            auto encryptedAesKey = Crypt::encryptRsaBase64(
+                Encoding::base64UrlEncode(aesKey.data(), aesKey.size()),
+                rsaKey
+                );
+
+            QNetworkRequest request(QUrl(server + KEY_EXCHANGE_URL));
+            request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+            request.setRawHeader("Authorization", g_jwt.c_str());
+
+            nlohmann::json jData({
+                {"step", 1},
+                {"exchange_id", exchangeId},
+                {"key", encryptedAesKey}
+            });
+
+            bgKeyExchNetAccessMgr->post(request, jData.dump().c_str());
+            break; // no more than one request at a time
         }
     }
 
@@ -219,7 +268,14 @@ namespace Ui {
         if (msg.empty()) return;
 
         // encrypt message
-        assert(keys.contains(currentChatId));
+        if (!keys.contains(currentChatId)) {
+            QMessageBox msgBox;
+            msgBox.setWindowTitle("Error");
+            msgBox.setText("Encryption key is not yet exchanged.");
+            msgBox.setIcon(QMessageBox::Critical);
+            msgBox.exec();
+            return;
+        }
         auto key = keys[currentChatId];
         msg = Crypt::encryptAes256Base64(msg, key);
 
@@ -252,7 +308,7 @@ namespace Ui {
     void ChatWindow::addAesKey(const AES256Key &key) {
         // TODO: save key to a file/database
         keys[currentChatId] = key;
-        isPendingKeyExchange = false;
+        isRequestingKeyExchange = false;
     }
 
     AES256Key ChatWindow::generateAesKey() {
@@ -291,6 +347,13 @@ namespace Ui {
     void ChatWindow::timerEvent(QTimerEvent *event) {
         auto timer = event->timerId();
 
+        if (timer == pendingKeyExchChkTimerId) {
+            QNetworkRequest request(QUrl(server + PENDING_KEY_EXCH_URL));
+            request.setRawHeader("Authorization", g_jwt.c_str());
+            bgKeyExchNetAccessMgr->get(request);
+            return;
+        }
+
         if (printMsgTimerId.has_value() && timer == printMsgTimerId.value()) {
             int i = 0;
             Message msg;
@@ -320,10 +383,11 @@ namespace Ui {
         }
 
         if (keyExchTimerId.has_value() && timer == keyExchTimerId.value()) {
-            if (isPendingKeyExchange) {
+            if (isRequestingKeyExchange) {
                 QNetworkRequest request(QUrl(QString("%1/%2/step")
                     .arg(server + KEY_EXCHANGE_URL)
                     .arg(currentChatId)));
+                request.setRawHeader("Authorization", g_jwt.c_str());
                 keyExchNetAccessMgr->get(request);
             }
             return;
@@ -332,7 +396,7 @@ namespace Ui {
         assert(false && "uncovered timer id path");
     }
 
-    void ChatWindow::killAllTimers() {
+    void ChatWindow::killChatTimers() {
         if (getMsgTimerId.has_value())
             killTimer(getMsgTimerId.value());
 

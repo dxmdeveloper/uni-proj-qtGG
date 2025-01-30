@@ -2,12 +2,25 @@
 #include <random>
 #include <crow.h>
 #include <QString>
+#include "config.hpp"
 
 inline constexpr int HTTP_CODE_BAD_REQUEST = 400;
 inline constexpr int HTTP_CODE_UNAUTHORIZED = 401;
 inline constexpr int HTTP_CODE_FORBIDDEN = 403;
 inline constexpr int HTTP_CODE_INTERNAL_SERVER_ERROR = 500;
 
+
+bool connectToDatabase(QSqlDatabase &db) {
+    db.setHostName(config::DATABASE_ADDR);
+    db.setDatabaseName(config::DATABASE_NAME);
+    db.setUserName(config::DATABASE_USER);
+    db.setPassword(config::DATABASE_PASSWORD);
+    bool connected = db.open();
+    if (!connected) {
+        CROW_LOG_CRITICAL << "Connection to database failed.";
+    }
+    return connected;
+}
 
 inline std::string jsonWrite(const crow::json::wvalue::object &json) {
     crow::json::wvalue wvalue(json);

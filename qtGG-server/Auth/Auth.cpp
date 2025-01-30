@@ -131,16 +131,21 @@ namespace Auth {
             auth = auth.substr(7);
         }
         JwtReader jwtReader(auth);
-        if (!jwtReader.isFormatValid() || !jwtReader.validateHash(config::SECRET_HMAC_KEY))
-            return {};
+        if (!jwtReader.isFormatValid() || !jwtReader.validateHash(config::SECRET_HMAC_KEY)) {
+            crow::json::rvalue empty;
+            empty.set_error();
+            return empty;
+        }
         return crow::json::load(jwtReader.getPayload());
     }
 
     bool handleAuthorizationHeader(QSqlDatabase &db, crow::json::rvalue &out_jwt, const crow::request &req,
                                    crow::response &res) {
+
         out_jwt = Auth::readJWTAndVerifyHash(req);
 
-        if (!out_jwt.has("id")) {
+        if (out_jwt.error() || !out_jwt.has("id")) {
+            CROW_LOG_WARNING << "Invalid JWT (" << req.get_header_value("Authorization") << ")";
             res.code = HTTP_CODE_UNAUTHORIZED;
             return false;
         }

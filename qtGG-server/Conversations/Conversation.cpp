@@ -77,4 +77,14 @@ namespace Conversations {
             CROW_LOG_ERROR << query.lastError().text().toStdString();
         return result;
     }
+
+    bool cleanConversation(QSqlDatabase &db, uint64_t id) {
+        QSqlQuery query(db);
+        query.prepare("DELETE FROM messages WHERE conversation=?");
+        query.addBindValue(quint64(id));
+        auto result = query.exec();
+        if (!result)
+            CROW_LOG_ERROR << query.lastError().text().toStdString();
+        return result;
+    }
 }

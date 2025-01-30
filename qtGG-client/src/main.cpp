@@ -21,10 +21,7 @@ int main(int argc, char *argv[]) {
     AccMgr_Output_free(&accmgrOut);
 
     QApplication app(argc, argv);
-    QString testStr("");
-    Ui::ChatWindow chatWindow(testStr);
     Ui::ListWindow listWindow(server);
-    chatWindow.show();
     listWindow.show();
 
     return app.exec();
