@@ -31,13 +31,11 @@ inline std::string jsonWrite(const crow::json::wvalue::object &json) {
     return wvalue.dump();
 }
 
-template <typename T>
-T getRandInt(T min, T max) {
-    static_assert(std::is_integral_v<T>);
 
+inline int getRandInt(int min, int max) {
     static std::random_device rd;
     static std::mt19937 generator(rd());
-    std::uniform_int_distribution<T> dist(min, max);
+    std::uniform_int_distribution<int> dist(min, max);
 
     return dist(generator);
 }

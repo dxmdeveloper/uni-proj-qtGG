@@ -58,13 +58,20 @@ cd vcpkg
 .\vcpkg install nlohmann-json:x64-windows
 .\vcpkg install openssl:x64-windows
 .\vcpkg install crow:x64-windows
-.\vcpkg install qtbase:x64-windows
+.\vcpkg install qtbase[core,gui,widgets,network,sql]:x64-windows
 .\vcpkg install qttools:x64-windows
 ```
-**4. build the project**
+**4. Find and rename method "signals" to "getSignals" in crow's app.h**
+**5. build the project**
 ```
+cd ..
 mkdir build
 cd build
-cmake -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake ..
+cmake -A=x64 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake ..
 cmake --build .
 ```
+**6. copy DLLs to build binary directory**
+- copy content of qtGG-accmgr build folder to qtGG-client build folder
+- copy folders from vcpkg/installed/x64-windows/Qt6/plugins to qtGG-client and qtGG-server build folders
+- In case you have error opening server: copy dlls (libiconv-2.dll, libintl-8.dll, libpq.dll) from postgresql/bin to qtGG-server build folder
+(https://forum.qt.io/topic/134053/qpsql-driver-not-loaded/22)

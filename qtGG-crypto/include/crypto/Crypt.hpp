@@ -1,8 +1,8 @@
 #pragma once
 #include <span>
 #include <string_view>
+#include <string>
 #include <vector>
-#include <bits/stdint-uintn.h>
 
 namespace Crypt {
     /// @return 128 character long string.

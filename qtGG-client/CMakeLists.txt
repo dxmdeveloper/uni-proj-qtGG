@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.20)
 project(qtGG-client)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -47,11 +47,13 @@ else()
     set(ACCMGR_BIN_FILE libqtGG-accmgr.so)
 endif()
 
-add_custom_command(TARGET qtGG-client POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_BINARY_DIR}/qtGG-accmgr/${ACCMGR_BIN_FILE}
-        $<TARGET_FILE_DIR:qtGG-client>
-)
+if(UNIX)
+    add_custom_command(TARGET qtGG-client POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/qtGG-accmgr/${ACCMGR_BIN_FILE}
+            $<TARGET_FILE_DIR:qtGG-client>
+    )
+endif ()
 
 if(UNIX)
     set_target_properties(qtGG-client PROPERTIES

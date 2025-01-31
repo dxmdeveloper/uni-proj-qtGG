@@ -10,6 +10,7 @@
 #include <QNetworkReply>
 #include <QThreadPool>
 #include <utility>
+#include <random>
 
 #include "../common.hpp"
 
@@ -327,11 +328,11 @@ namespace Ui {
     AES256Key ChatWindow::generateAesKey() {
         static std::random_device rd;
         static std::mt19937 gen(rd());
-        static std::uniform_int_distribution<uint8_t> dist(0, 255);
+        static std::uniform_int_distribution<int> dist(0, 255);
 
         AES256Key key{};
         for (auto &i: key) {
-            i = dist(gen);
+            i = (char)dist(gen);
         }
         return key;
     }

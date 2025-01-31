@@ -15,18 +15,9 @@
 #include <random>
 #include <span>
 
-template<typename T>
-static T getRandInt(T min, T max) {
-    static_assert(std::is_integral_v<T>);
-
-    static std::random_device rd;
-    static std::mt19937 generator(rd());
-    std::uniform_int_distribution<T> dist(min, max);
-
-    return dist(generator);
-}
 
 namespace Crypt {
+
     template<bool useHMAC, const EVP_MD*(*evpMd)(void), typename StrT, typename ArgStrT>
     static StrT msgDigest(ArgStrT msg, const char *hmacKey, size_t hmacKeyLen, bool useBase64 = false) {
         unsigned char buffer[EVP_MAX_MD_SIZE]{};
@@ -79,16 +70,24 @@ namespace Crypt {
 
     std::string generateSalt() {
         char salt[9]{};
+        auto getRandInt = [](int min, int max) {
+                static std::random_device rd;
+                static std::mt19937 generator(rd());
+                std::uniform_int_distribution dist(min, max);
+
+                return dist(generator);
+        };
+
         for (int i = 0; i < 8; i++) {
             switch (getRandInt(0, 2)) {
                 case 0:
-                    salt[i] = getRandInt('0', '9');
+                    salt[i] = (char)getRandInt('0', '9');
                     break;
                 case 1:
-                    salt[i] = getRandInt('a', 'z');
+                    salt[i] = (char)getRandInt('a', 'z');
                     break;
                 default:
-                    salt[i] = getRandInt('A', 'Z');
+                    salt[i] = (char)getRandInt('A', 'Z');
                     break;
             }
         }
