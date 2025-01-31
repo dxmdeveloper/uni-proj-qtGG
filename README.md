@@ -62,6 +62,7 @@ cd vcpkg
 .\vcpkg install qttools:x64-windows
 ```
 **4. Find and rename method "signals" to "getSignals" in crow's app.h**
+
 **5. build the project**
 ```
 cd ..
