@@ -15,15 +15,13 @@ find_package(Qt6 COMPONENTS
 
 find_package(OpenSSL)
 
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/include)
+include_directories(${CMAKE_SOURCE_DIR}/qtGG-crypto/include)
+include_directories(${CMAKE_SOURCE_DIR}/qtGG-accmgr/include)
 
 # Add executable
 add_executable(qtGG-client src/main.cpp
         src/ListWindow/ListWindow.cpp
         src/ListWindow/ListWindow.hpp
-        ../qtGG-accmgr/src/LoginWindow.cpp
-        ../qtGG-accmgr/src/LoginWindow.hpp
         src/common.hpp
         src/ChatWindow/ChatWindow.cpp
         src/ChatWindow/ChatWindow.hpp)
@@ -37,44 +35,29 @@ target_link_libraries(qtGG-client
 )
 
 # Link the libqtGG-crypto.a static library
-target_link_libraries(qtGG-client ${CMAKE_CURRENT_SOURCE_DIR}/libs/libqtGG-crypto.a)
+target_link_libraries(qtGG-client qtGG-crypto)
+
 # Link OpenSSL
 target_link_libraries(qtGG-client OpenSSL::SSL OpenSSL::Crypto)
 
 # --- Handle qtGG-accmgr shared library ---
-# Determine library file based on platform
 if(WIN32)
-    set(LIBRARY_NAME qtGG-accmgr.dll)
+    set(ACCMGR_BIN_FILE qtGG-accmgr.dll)
 else()
-    set(LIBRARY_NAME libqtGG-accmgr.so)
+    set(ACCMGR_BIN_FILE libqtGG-accmgr.so)
 endif()
 
-set(CPY_SOURCE_LIBRARY_PATH "${CMAKE_BINARY_DIR}/qtGG-accmgr/${LIBRARY_NAME}")
-set(CPY_DEST_LIBRARY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/${LIBRARY_NAME}")
+add_custom_command(TARGET qtGG-client POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_BINARY_DIR}/qtGG-accmgr/${ACCMGR_BIN_FILE}
+        $<TARGET_FILE_DIR:qtGG-client>
+)
 
-
-# If the library exists, add a custom command to copy it if different
-if(EXISTS "${CPY_SOURCE_LIBRARY_PATH}")
-    message("library build directory found")
-
-    add_custom_command(
-            TARGET qtGG-client PRE_LINK
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CPY_SOURCE_LIBRARY_PATH}" "${CPY_DEST_LIBRARY_PATH}"
-            COMMENT "Copying ${LIBRARY_NAME} to libs directory if it exists and is newer or missing"
-    )
-else ()
-    message("library build directory not found")
-endif ()
-
-# Path to the library in the source tree
-set(SOURCE_LIBRARY_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/${LIBRARY_NAME}")
-# Set RPATH on Linux to use $ORIGIN (the executable's directory)
 if(UNIX)
     set_target_properties(qtGG-client PROPERTIES
             BUILD_RPATH "$ORIGIN"
             INSTALL_RPATH "$ORIGIN"
     )
 endif()
+target_link_libraries(qtGG-client qtGG-accmgr)
 
-# Link the library from the source directory (temporary)
-target_link_libraries(qtGG-client "${SOURCE_LIBRARY_PATH}")

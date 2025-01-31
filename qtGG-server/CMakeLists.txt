@@ -7,8 +7,7 @@ find_package(Crow)
 find_package(OpenSSL)
 find_package(Qt6 COMPONENTS Sql Core REQUIRED)
 
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/include)
+include_directories(${CMAKE_SOURCE_DIR}/qtGG-crypto/include)
 
 add_executable(qtGG-server main.cpp
         config.hpp
@@ -33,5 +32,5 @@ add_executable(qtGG-server main.cpp
 # Link the libqtGG-crypto.a library and its dependencies
 target_link_libraries(qtGG-server PUBLIC Crow::Crow)
 target_link_libraries(qtGG-server PRIVATE Qt6::Sql Qt6::Core)
-target_link_libraries(qtGG-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/libs/libqtGG-crypto.a)
+target_link_libraries(qtGG-server PRIVATE qtGG-crypto)
 target_link_libraries(qtGG-server PRIVATE OpenSSL::SSL OpenSSL::Crypto)
