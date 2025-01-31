@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     // test connection
     QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL");
     bool connected = connectToDatabase(db);
-    if (!connected) {
+    if (!connected)
         return -1;
 
 
@@ -38,9 +38,9 @@ int main(int argc, char *argv[]) {
 
     // curl -d '{"user":"test3","pass":"aoeuaoeu"}' 127.0.0.1/login
     // /login /register
-    Auth::routes::createRoutes(serverApp, db);
+    Auth::routes::createRoutes(serverApp);
     Users::routes::createRoutes(serverApp, db);
-    Conversations::routes::createRoutes(serverApp, db);
+    Conversations::routes::createRoutes(serverApp);
 
     serverApp.port(80).multithreaded().run();
 }

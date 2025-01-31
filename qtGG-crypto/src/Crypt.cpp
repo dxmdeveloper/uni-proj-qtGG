@@ -4,6 +4,7 @@
 #include <cstring>
 #include <memory>
 // I Wish I had used botan for encryption
+#include <iostream>
 #include <openssl/hmac.h>
 #include <openssl/rsa.h>
 #include <openssl/aes.h>
@@ -161,33 +162,62 @@ namespace Crypt {
     }
 
     std::string decryptRsaBase64(std::string_view msg, std::string_view prvRsaPEM) {
-        if (prvRsaPEM.size() > 4096) return "";
+        if (prvRsaPEM.size() > 4096) {
+            std::cerr << "Private key size exceeds 4096 bytes." << std::endl;
+            return "";
+        }
 
         auto keyLen = static_cast<int>(prvRsaPEM.size());
         auto basicIO = std::unique_ptr<BIO, decltype(&BIO_free_all)>(
             BIO_new_mem_buf(prvRsaPEM.data(), keyLen), BIO_free_all
         );
-        if (!basicIO) return "";
+        if (!basicIO) {
+            std::cerr << "Failed to create BIO for private key." << std::endl;
+            return "";
+        }
 
         EVP_PKEY *pKey = nullptr;
-        PEM_read_bio_PrivateKey(basicIO.get(), &pKey, nullptr, nullptr);
+        if (!PEM_read_bio_PrivateKey(basicIO.get(), &pKey, nullptr, nullptr)) {
+            std::cerr << "Failed to read private key from BIO: "
+                    << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+            return "";
+        }
 
         auto scopedPKey = std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>(pKey, EVP_PKEY_free);
 
         auto ctx = std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)>(
             EVP_PKEY_CTX_new(pKey, nullptr), EVP_PKEY_CTX_free
         );
+        if (!ctx) {
+            std::cerr << "Failed to create EVP_PKEY_CTX: "
+                    << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+            return "";
+        }
 
-        EVP_PKEY_decrypt_init(ctx.get());
+        if (EVP_PKEY_decrypt_init(ctx.get()) <= 0) {
+            std::cerr << "Failed to initialize decryption context: "
+                    << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+            return "";
+        }
+
         size_t decryptedSize;
         auto decoded = Encoding::base64UrlDecode(msg);
         auto *dataPtr = reinterpret_cast<const unsigned char *>(decoded.data());
-        // Get size first
-        EVP_PKEY_decrypt(ctx.get(), nullptr, &decryptedSize, dataPtr, decoded.size());
-        std::vector<unsigned char> decrypted(decryptedSize);
-        // Decrypt
-        EVP_PKEY_decrypt(ctx.get(), decrypted.data(), &decryptedSize, dataPtr, decoded.size());
-        return std::string(reinterpret_cast<char*>(decrypted.data()), decryptedSize);
+
+        if (EVP_PKEY_decrypt(ctx.get(), nullptr, &decryptedSize, dataPtr, decoded.size()) <= 0) {
+            std::cerr << "Failed to determine decrypted size: "
+                    << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+            return "";
+        }
+
+        std::vector<unsigned char> decrypted(decryptedSize + 1);
+        if (EVP_PKEY_decrypt(ctx.get(), decrypted.data(), &decryptedSize, dataPtr, decoded.size()) <= 0) {
+            std::cerr << "Decryption failed: "
+                    << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+            return "";
+        }
+
+        return std::string(reinterpret_cast<char *>(decrypted.data()));
     }
 
     std::string encryptAes256Base64(std::string_view msg, std::span<unsigned char> key) {
@@ -201,7 +231,8 @@ namespace Crypt {
         int len = 0;
         int encryptedLen = 0;
 
-        auto ctx = std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
+        auto ctx = std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)>(
+            EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free);
         if (!ctx) return "";
 
         if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_cbc(), nullptr, key.data(), iv) != 1)
@@ -271,6 +302,6 @@ namespace Crypt {
 
         decryptedLen += len;
 
-        return std::string(reinterpret_cast<char*>(decrypted.data()), decryptedLen);
+        return std::string(reinterpret_cast<char *>(decrypted.data()), decryptedLen);
     }
 }

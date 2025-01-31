@@ -2,6 +2,7 @@
 #include <span>
 #include <string_view>
 #include <vector>
+#include <bits/stdint-uintn.h>
 
 namespace Crypt {
     /// @return 128 character long string.

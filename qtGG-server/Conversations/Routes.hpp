@@ -4,8 +4,9 @@
 #include <string>
 #include <crow.h>
 
+
 namespace Conversations::routes {
-    void createRoutes(crow::SimpleApp &app, QSqlDatabase &db);
+    void createRoutes(crow::SimpleApp &app);
 
     /// POST /startConversation
     /// @params: user

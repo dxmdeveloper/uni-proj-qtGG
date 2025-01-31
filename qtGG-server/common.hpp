@@ -2,6 +2,7 @@
 #include <random>
 #include <crow.h>
 #include <QString>
+#include <QUuid>
 #include "config.hpp"
 
 inline constexpr int HTTP_CODE_BAD_REQUEST = 400;
@@ -10,7 +11,10 @@ inline constexpr int HTTP_CODE_FORBIDDEN = 403;
 inline constexpr int HTTP_CODE_INTERNAL_SERVER_ERROR = 500;
 
 
-bool connectToDatabase(QSqlDatabase &db) {
+inline bool connectToDatabase(QSqlDatabase &db) {
+    QString connectionName = QUuid::createUuid().toString();
+    db = QSqlDatabase::addDatabase("QPSQL", connectionName);
+
     db.setHostName(config::DATABASE_ADDR);
     db.setDatabaseName(config::DATABASE_NAME);
     db.setUserName(config::DATABASE_USER);

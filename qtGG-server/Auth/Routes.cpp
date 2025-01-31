@@ -5,12 +5,24 @@
 #include "../config.hpp"
 
 namespace Auth::routes {
-    void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
+    void createRoutes(crow::SimpleApp &app) {
         CROW_ROUTE(app, "/login").methods(crow::HTTPMethod::POST)([&](const crow::request &req) {
-            return login(db, req);
+            QSqlDatabase db;
+            connectToDatabase(db);
+
+            auto result = login(db, req);
+
+            db.close();
+            return result;
         });
         CROW_ROUTE(app, "/register").methods(crow::HTTPMethod::POST)([&](const crow::request &req) {
-            return register_(db, req);
+            QSqlDatabase db;
+            connectToDatabase(db);
+
+            auto result = register_(db, req);
+
+            db.close();
+            return result;
         });
     }
 

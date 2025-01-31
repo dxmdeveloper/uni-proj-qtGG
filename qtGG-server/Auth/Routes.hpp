@@ -3,9 +3,12 @@
 #include <QSqlDatabase>
 #include <crow.h>
 
+#include "Auth.hpp"
+#include "Auth.hpp"
+
 
 namespace Auth::routes {
-    void createRoutes(crow::SimpleApp &app, QSqlDatabase &db);
+    void createRoutes(crow::SimpleApp &app);
 
     /// POST /login
     /// @params: user, pass

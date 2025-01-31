@@ -175,8 +175,9 @@ namespace Ui {
 
     void ChatWindow::onKeyReply(QNetworkReply *reply) {
         nlohmann::json json;
+        auto rawBody = reply->readAll().toStdString();
         if (!reply->error())
-            json = nlohmann::json::parse(reply->readAll().toStdString());
+            json = nlohmann::json::parse(rawBody);
 
         if (reply->error() || json.contains("error")) {
             chat->append("Failed to exchange keys.<br>");
@@ -193,27 +194,39 @@ namespace Ui {
             QNetworkRequest request(QUrl(
                 QString("%1/%2/key")
                 .arg(server + KEY_EXCHANGE_URL)
-                .arg(currentChatId)));
+                .arg(currentExchangeId)));
 
             request.setRawHeader("Authorization", g_jwt.c_str());
             keyExchNetAccessMgr->get(request);
         }
 
-        auto setTimersAfterSuccess = [&]() {
-            killTimer(keyExchTimerId.value());
+        auto onSuccessSetTimersAndChat = [&]() {
+            chat->clear();
+            if (keyExchTimerId)
+                killTimer(keyExchTimerId.value());
             keyExchTimerId.reset();
             getMsgTimerId = startTimer(GET_MSG_INTERVAL);
         };
 
         if (json.contains("key")) {
-            auto aesKey = json["key"].get<std::string>();
-            aesKey = Crypt::decryptRsaBase64(aesKey, rsaKeyPair.first);
-            auto aesDecoded = Encoding::base64UrlDecodeBytes(aesKey);
+            auto aesEnc = json["key"].get<std::string>();
+            if (aesEnc.empty()) return; // exchange is complete
+
+            aesEnc = Crypt::decryptRsaBase64(aesEnc, rsaKeyPair.first);
+            auto aesDecoded = Encoding::base64UrlDecodeBytes(aesEnc);
+
             AES256Key key{};
+            if (aesDecoded.size() < key.size()) {
+                qDebug() << "Invalid AES key.";
+                return;
+            }
+
             std::copy_n(aesDecoded.begin(), key.size(), key.begin());
             addAesKey(key);
 
-            setTimersAfterSuccess();
+            rsaKeyPair.first.clear();
+            rsaKeyPair.second.clear();
+            onSuccessSetTimersAndChat();
         }
 
         if (json.contains("success") && !json["success"].get<bool>()) {
@@ -221,7 +234,7 @@ namespace Ui {
             auto aesKey = generateAesKey();
             addAesKey(aesKey);
             isRequestingKeyExchange = false;
-            setTimersAfterSuccess();
+            onSuccessSetTimersAndChat();
         }
     }
 
@@ -354,7 +367,7 @@ namespace Ui {
             return;
         }
 
-        if (printMsgTimerId.has_value() && timer == printMsgTimerId.value()) {
+        if (printMsgTimerId && timer == printMsgTimerId.value()) {
             int i = 0;
             Message msg;
             while (!receivedMsgQueue.empty() && i < 10) {
@@ -370,7 +383,7 @@ namespace Ui {
             }
             return;
         }
-        if (getMsgTimerId.has_value() && timer == getMsgTimerId.value()) {
+        if (getMsgTimerId && timer == getMsgTimerId.value()) {
             QNetworkRequest request(QUrl(
                 QString("%1/%2/%3")
                 .arg(server + GET_MSG_URL)
@@ -382,11 +395,11 @@ namespace Ui {
             return;
         }
 
-        if (keyExchTimerId.has_value() && timer == keyExchTimerId.value()) {
+        if (keyExchTimerId && timer == keyExchTimerId.value()) {
             if (isRequestingKeyExchange) {
                 QNetworkRequest request(QUrl(QString("%1/%2/step")
                     .arg(server + KEY_EXCHANGE_URL)
-                    .arg(currentChatId)));
+                    .arg(currentExchangeId)));
                 request.setRawHeader("Authorization", g_jwt.c_str());
                 keyExchNetAccessMgr->get(request);
             }
@@ -397,13 +410,13 @@ namespace Ui {
     }
 
     void ChatWindow::killChatTimers() {
-        if (getMsgTimerId.has_value())
+        if (getMsgTimerId)
             killTimer(getMsgTimerId.value());
 
-        if (keyExchTimerId.has_value())
+        if (keyExchTimerId)
             killTimer(keyExchTimerId.value());
 
-        if (printMsgTimerId.has_value())
+        if (printMsgTimerId)
             killTimer(printMsgTimerId.value());
     }
 }

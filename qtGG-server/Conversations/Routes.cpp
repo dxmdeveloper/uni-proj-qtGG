@@ -6,11 +6,11 @@
 #include "KeyExchange.hpp"
 #include "Messages.hpp"
 
-void logRequest(const crow::request& req) {
+void logRequest(const crow::request &req) {
     CROW_LOG_INFO << "Request URL: " << req.url;
     CROW_LOG_INFO << "Request Method: " << crow::method_name(req.method);
     CROW_LOG_INFO << "Request Headers:";
-    for (const auto& header : req.headers) {
+    for (const auto &header: req.headers) {
         CROW_LOG_INFO << header.first << ": " << header.second;
     }
     CROW_LOG_INFO << "Request Body: " << req.body;
@@ -18,42 +18,77 @@ void logRequest(const crow::request& req) {
 
 
 namespace Conversations::routes {
-    void createRoutes(crow::SimpleApp &app, QSqlDatabase &db) {
+    void createRoutes(crow::SimpleApp &app) {
         CROW_ROUTE(app, "/startConversation").methods(crow::HTTPMethod::POST)(
             [&](const crow::request &req, crow::response &res) {
+                QSqlDatabase db;
+                connectToDatabase(db);
+
                 startConversation(db, req, res);
                 res.end();
+
+                db.close();
             });
         CROW_ROUTE(app, "/exchangeKey").methods(crow::HTTPMethod::POST)(
             [&](const crow::request &req, crow::response &res) {
+                QSqlDatabase db;
+                connectToDatabase(db);
+
                 exchangeKey(db, req, res);
                 res.end();
+
+                db.close();
             });
         CROW_ROUTE(app, "/sendMessage").methods(crow::HTTPMethod::POST)(
             [&](const crow::request &req, crow::response &res) {
+                QSqlDatabase db;
+                connectToDatabase(db);
+
                 sendMessage(db, req, res);
                 res.end();
+
+                db.close();
             });
         CROW_ROUTE(app, "/getMessages/<int>/<int>")(
             [&](const crow::request &req, crow::response &res, uint64_t c, int64_t s) {
+                QSqlDatabase db;
+                connectToDatabase(db);
+
                 getMessages(db, req, res, c, s);
                 res.end();
+
+                db.close();
             });
         CROW_ROUTE(app, "/exchangeKey/<int>/step")(
             [&](const crow::request &req, crow::response &res, uint64_t e) {
+                QSqlDatabase db;
+                connectToDatabase(db);
+
                 //logRequest(req);
                 exchangeKeyGetStep(db, req, res, e);
                 res.end();
+
+                db.close();
             });
         CROW_ROUTE(app, "/exchangeKey/<int>/key")(
             [&](const crow::request &req, crow::response &res, uint64_t e) {
+                QSqlDatabase db;
+                connectToDatabase(db);
+
                 exchangeKeyGetKey(db, req, res, e);
                 res.end();
+
+                db.close();
             });
         CROW_ROUTE(app, "/keyExchangeRequests")(
             [&](const crow::request &req, crow::response &res) {
+                QSqlDatabase db;
+                connectToDatabase(db);
+
                 keyExchangeRequests(db, req, res);
                 res.end();
+
+                db.close();
             });
     }
 
