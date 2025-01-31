@@ -2,6 +2,8 @@
 Advanced Programming Techniques course project.
 A simple chat application with end-to-end encryption.
 
+Server is using PostgreSQL database.
+
 ### What works
 - login and registering
 - choosing a conversation from the contact list
